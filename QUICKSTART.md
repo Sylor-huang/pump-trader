@@ -388,15 +388,3 @@ trader.listenTrades((event) => {
   }
 });
 ```
-
----
-
-## 📝 下一步
-
-- 查看 [README.md](./README.md) 了解完整 API
-- 查看 [examples.js](./examples.js) 看更多示例
-- 查看 [IMPROVEMENTS.md](./IMPROVEMENTS.md) 了解改进细节
-
----
-
-**祝你交易愉快！** 🚀
