@@ -162,9 +162,31 @@ console.log(completed);  // 是否完成内盘
 
 ### 查询余额
 
+#### 查询单个代币余额
+
 ```javascript
-// 代币余额
-const tokenBalance = await trader.tokenBalance(tokenAddr);
+// 查询指定代币的余额
+const balance = await trader.tokenBalance(tokenAddr);
+console.log(balance);  // 返回数字，例如：123.45
+```
+
+#### 查询所有代币余额
+
+```javascript
+// 查询账户所有的代币（余额 > 0）
+const allTokens = await trader.tokenBalance();
+
+// 返回数组：[{ mint, amount, decimals, uiAmount }, ...]
+allTokens.forEach((token) => {
+  console.log(`${token.mint}: ${token.uiAmount}`);
+});
+```
+
+#### 使用专用方法
+
+```javascript
+// 直接调用方法查询所有代币
+const allBalances = await trader.getAllTokenBalances();
 
 // SOL 余额
 const solBalance = await trader.solBalance();

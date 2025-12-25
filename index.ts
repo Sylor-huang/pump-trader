@@ -469,14 +469,93 @@ export class PumpTrader {
 
   /* ---------- 余额查询 ---------- */
 
-  async tokenBalance(tokenAddr: string): Promise<number> {
-    const mint = new PublicKey(tokenAddr);
+  /**
+   * 查询代币余额
+   * @param tokenAddr - 代币地址（可选），如果不传则返回所有代币
+   * @returns 如果传入地址则返回该代币的余额数字，否则返回所有代币的详细信息
+   */
+  async tokenBalance(tokenAddr?: string): Promise<number | Array<{ mint: string; amount: number; decimals: number; uiAmount: number }>> {
+    if (tokenAddr) {
+      // 查询单个代币
+      const mint = new PublicKey(tokenAddr);
+      const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(
+        this.wallet.publicKey,
+        { mint }
+      );
+      return tokenAccounts.value[0]?.account.data.parsed.info.tokenAmount.uiAmount || 0;
+    } else {
+      // 查询所有代币
+      return this.getAllTokenBalances();
+    }
+  }
+
+  /**
+   * 获取账户所有代币余额（仅显示余额 > 0 的）
+   * @returns 代币信息数组，包含mint地址、余额等信息
+   */
+  async getAllTokenBalances(): Promise<Array<{ mint: string; amount: number; decimals: number; uiAmount: number }>> {
     const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(
       this.wallet.publicKey,
-      { mint }
+      { programId: TOKEN_PROGRAM_ID }
     );
 
-    return tokenAccounts.value[0]?.account.data.parsed.info.tokenAmount.uiAmount || 0;
+    const balances = tokenAccounts.value
+      .map((account) => {
+        const parsed = account.account.data.parsed;
+        if (parsed.type !== 'account') return null;
+
+        const tokenAmount = parsed.info.tokenAmount;
+        if (Number(tokenAmount.amount) === 0) return null; // 跳过余额为0的
+
+        return {
+          mint: parsed.info.mint,
+          amount: BigInt(tokenAmount.amount),
+          decimals: tokenAmount.decimals,
+          uiAmount: tokenAmount.uiAmount || 0
+        };
+      })
+      .filter((item) => item !== null) as Array<{ mint: string; amount: bigint; decimals: number; uiAmount: number }>;
+
+    // 同时查询 TOKEN_2022_PROGRAM_ID
+    const token2022Accounts = await this.connection.getParsedTokenAccountsByOwner(
+      this.wallet.publicKey,
+      { programId: TOKEN_2022_PROGRAM_ID }
+    );
+
+    const token2022Balances = token2022Accounts.value
+      .map((account) => {
+        const parsed = account.account.data.parsed;
+        if (parsed.type !== 'account') return null;
+
+        const tokenAmount = parsed.info.tokenAmount;
+        if (Number(tokenAmount.amount) === 0) return null; // 跳过余额为0的
+
+        return {
+          mint: parsed.info.mint,
+          amount: BigInt(tokenAmount.amount),
+          decimals: tokenAmount.decimals,
+          uiAmount: tokenAmount.uiAmount || 0
+        };
+      })
+      .filter((item) => item !== null) as Array<{ mint: string; amount: bigint; decimals: number; uiAmount: number }>;
+
+    // 合并并去重
+    const allBalances = [...balances, ...token2022Balances];
+    const seen = new Set<string>();
+    const uniqueBalances = allBalances
+      .filter((b) => {
+        if (seen.has(b.mint)) return false;
+        seen.add(b.mint);
+        return true;
+      })
+      .map((b) => ({
+        mint: b.mint,
+        amount: Number(b.amount),
+        decimals: b.decimals,
+        uiAmount: b.uiAmount
+      }));
+
+    return uniqueBalances;
   }
 
   async solBalance(): Promise<number> {
