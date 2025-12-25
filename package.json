@@ -10,14 +10,8 @@
   },
   "keywords": [
     "solana",
-    "pump",
     "pumpfun",
-    "trading",
-    "token",
-    "bonding-curve",
-    "amm",
-    "token-program",
-    "token-2022"
+    "trading"
   ],
   "author": "Sylor",
   "license": "MIT",
