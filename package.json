@@ -1,19 +1,11 @@
 {
   "name": "pump-trader",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "PumpFun 交易库 - 自动判断 Token Program 和内盘/外盘",
-  "type": "module",
-  "main": "./index.js",
-  "types": "./index.ts",
-  "exports": {
-    ".": {
-      "import": "./index.js",
-      "require": "./index.js",
-      "types": "./index.ts"
-    }
-  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc --noEmit",
+    "build": "tsc",
     "format": "prettier --write ."
   },
   "keywords": [
