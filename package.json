@@ -1,0 +1,55 @@
+{
+  "name": "pump-trader",
+  "version": "1.0.0",
+  "description": "PumpFun 交易库 - 自动判断 Token Program 和内盘/外盘",
+  "type": "module",
+  "main": "./index.js",
+  "types": "./index.ts",
+  "exports": {
+    ".": {
+      "import": "./index.js",
+      "require": "./index.js",
+      "types": "./index.ts"
+    }
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "format": "prettier --write ."
+  },
+  "keywords": [
+    "solana",
+    "pump",
+    "pumpfun",
+    "trading",
+    "token",
+    "bonding-curve",
+    "amm",
+    "token-program",
+    "token-2022"
+  ],
+  "author": "Sylor",
+  "license": "MIT",
+  "dependencies": {
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.98.4",
+    "bn.js": "^5.2.2",
+    "bs58": "^5.0.0"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.1",
+    "@types/node": "^20.0.0",
+    "prettier": "^3.0.0",
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Sylor-huang/pump-trader"
+  },
+  "bugs": {
+    "url": "https://github.com/Sylor-huang/pump-trader/issues"
+  }
+}
