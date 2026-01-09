@@ -1,6 +1,6 @@
 {
   "name": "pump-trader",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "PumpFun 交易库 - 自动判断 Token Program 和内盘/外盘",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
