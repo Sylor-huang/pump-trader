@@ -838,7 +838,7 @@ export class PumpTrader {
     const poolInfo = await this.getAmmPoolInfo(mint);
     const reserves = await this.getAmmPoolReserves(poolInfo.poolKeys);
     const solChunks = this.splitByMax(totalSolIn, tradeOpt.maxSolPerTx);
-
+    const tokenProgram = await this.detectTokenProgram(tokenAddr);
     const pendingTransactions = [];
     const failedTransactions = [];
 
@@ -859,7 +859,7 @@ export class PumpTrader {
           ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority })
         );
 
-        const userBaseAta = await this.ensureAta(tx, poolInfo.poolKeys.baseMint);
+        const userBaseAta = await this.ensureAta(tx, poolInfo.poolKeys.baseMint, tokenProgram.programId);
         const userQuoteAta = await this.ensureWSOLAta(
           tx,
           this.wallet.publicKey,
@@ -872,7 +872,8 @@ export class PumpTrader {
           userBaseAta,
           userQuoteAta,
           baseAmountOut,
-          maxQuoteIn
+          maxQuoteIn,
+          tokenProgram.programId
         );
 
         tx.add(buyIx);
@@ -916,6 +917,7 @@ export class PumpTrader {
     const poolInfo = await this.getAmmPoolInfo(mint);
     const reserves = await this.getAmmPoolReserves(poolInfo.poolKeys);
     const totalSolOut = this.calculateAmmSellOutput(totalTokenIn, reserves);
+    const tokenProgram = await this.detectTokenProgram(tokenAddr);
 
     const tokenChunks = totalSolOut <= tradeOpt.maxSolPerTx
       ? [totalTokenIn]
@@ -944,7 +946,7 @@ export class PumpTrader {
           ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority })
         );
 
-        const userBaseAta = await this.ensureAta(tx, poolInfo.poolKeys.baseMint);
+        const userBaseAta = await this.ensureAta(tx, poolInfo.poolKeys.baseMint, tokenProgram.programId);
         const userQuoteAta = await this.ensureWSOLAta(tx, this.wallet.publicKey, "sell");
 
         const sellIx = this.createAmmSellInstruction(
@@ -952,7 +954,8 @@ export class PumpTrader {
           userBaseAta,
           userQuoteAta,
           tokenIn,
-          minQuoteOut
+          minQuoteOut,
+          tokenProgram.programId
         );
 
         tx.add(sellIx);
@@ -1063,7 +1066,7 @@ export class PumpTrader {
 
   /* ---------- AMM 指令构建 ---------- */
 
-  createAmmBuyInstruction(poolInfo, userBaseAta, userQuoteAta, baseAmountOut, maxQuoteAmountIn) {
+  createAmmBuyInstruction(poolInfo, userBaseAta, userQuoteAta, baseAmountOut, maxQuoteAmountIn, tokenProgramId) {
     const { pool, poolKeys, globalConfig } = poolInfo;
 
     const [eventAuthority] = PublicKey.findProgramAddressSync(
@@ -1122,7 +1125,7 @@ export class PumpTrader {
         { pubkey: poolKeys.poolQuoteTokenAccount, isSigner: false, isWritable: true },
         { pubkey: protocolFeeRecipient, isSigner: false, isWritable: false },
         { pubkey: protocolFeeRecipientTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: tokenProgramId, isSigner: false, isWritable: false },
         { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
@@ -1144,7 +1147,7 @@ export class PumpTrader {
     });
   }
 
-  createAmmSellInstruction(poolInfo, userBaseAta, userQuoteAta, baseAmountIn, minQuoteAmountOut) {
+  createAmmSellInstruction(poolInfo, userBaseAta, userQuoteAta, baseAmountIn, minQuoteAmountOut, tokenProgramId) {
     const { pool, poolKeys, globalConfig } = poolInfo;
 
     const [eventAuthority] = PublicKey.findProgramAddressSync(
@@ -1193,7 +1196,7 @@ export class PumpTrader {
         { pubkey: poolKeys.poolQuoteTokenAccount, isSigner: false, isWritable: true },
         { pubkey: protocolFeeRecipient, isSigner: false, isWritable: false },
         { pubkey: protocolFeeRecipientTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+        { pubkey: tokenProgramId, isSigner: false, isWritable: false },
         { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },

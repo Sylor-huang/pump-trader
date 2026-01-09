@@ -607,6 +607,7 @@ class PumpTrader {
         const poolInfo = await this.getAmmPoolInfo(mint);
         const reserves = await this.getAmmPoolReserves(poolInfo.poolKeys);
         const solChunks = this.splitByMax(totalSolIn, tradeOpt.maxSolPerTx);
+        const tokenProgram = await this.detectTokenProgram(tokenAddr);
         const pendingTransactions = [];
         const failedTransactions = [];
         for (let i = 0; i < solChunks.length; i++) {
@@ -621,9 +622,9 @@ class PumpTrader {
                 const maxQuoteIn = (solIn * BigInt(10_000 + slippageBps)) / 10000n;
                 const priority = this.genPriority(tradeOpt.priority);
                 const tx = new web3_js_1.Transaction().add(web3_js_1.ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }), web3_js_1.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority }));
-                const userBaseAta = await this.ensureAta(tx, poolInfo.poolKeys.baseMint);
+                const userBaseAta = await this.ensureAta(tx, poolInfo.poolKeys.baseMint, tokenProgram.programId);
                 const userQuoteAta = await this.ensureWSOLAta(tx, this.wallet.publicKey, "buy", maxQuoteIn);
-                const buyIx = this.createAmmBuyInstruction(poolInfo, userBaseAta, userQuoteAta, baseAmountOut, maxQuoteIn);
+                const buyIx = this.createAmmBuyInstruction(poolInfo, userBaseAta, userQuoteAta, baseAmountOut, maxQuoteIn, tokenProgram.programId);
                 tx.add(buyIx);
                 tx.add((0, spl_token_1.createCloseAccountInstruction)(userQuoteAta, this.wallet.publicKey, this.wallet.publicKey));
                 const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('finalized');
@@ -654,6 +655,7 @@ class PumpTrader {
         const poolInfo = await this.getAmmPoolInfo(mint);
         const reserves = await this.getAmmPoolReserves(poolInfo.poolKeys);
         const totalSolOut = this.calculateAmmSellOutput(totalTokenIn, reserves);
+        const tokenProgram = await this.detectTokenProgram(tokenAddr);
         const tokenChunks = totalSolOut <= tradeOpt.maxSolPerTx
             ? [totalTokenIn]
             : this.splitIntoN(totalTokenIn, Number((totalSolOut + tradeOpt.maxSolPerTx - 1n) / tradeOpt.maxSolPerTx));
@@ -671,9 +673,9 @@ class PumpTrader {
                 const minQuoteOut = (solOut * BigInt(10_000 - slippageBps)) / 10000n;
                 const priority = this.genPriority(tradeOpt.priority);
                 const tx = new web3_js_1.Transaction().add(web3_js_1.ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }), web3_js_1.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority }));
-                const userBaseAta = await this.ensureAta(tx, poolInfo.poolKeys.baseMint);
+                const userBaseAta = await this.ensureAta(tx, poolInfo.poolKeys.baseMint, tokenProgram.programId);
                 const userQuoteAta = await this.ensureWSOLAta(tx, this.wallet.publicKey, "sell");
-                const sellIx = this.createAmmSellInstruction(poolInfo, userBaseAta, userQuoteAta, tokenIn, minQuoteOut);
+                const sellIx = this.createAmmSellInstruction(poolInfo, userBaseAta, userQuoteAta, tokenIn, minQuoteOut, tokenProgram.programId);
                 tx.add(sellIx);
                 tx.add((0, spl_token_1.createCloseAccountInstruction)(userQuoteAta, this.wallet.publicKey, this.wallet.publicKey));
                 const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('finalized');
@@ -747,7 +749,7 @@ class PumpTrader {
         };
     }
     /* ---------- AMM 指令构建 ---------- */
-    createAmmBuyInstruction(poolInfo, userBaseAta, userQuoteAta, baseAmountOut, maxQuoteAmountIn) {
+    createAmmBuyInstruction(poolInfo, userBaseAta, userQuoteAta, baseAmountOut, maxQuoteAmountIn, tokenProgramId) {
         const { pool, poolKeys, globalConfig } = poolInfo;
         const [eventAuthority] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("__event_authority")], PROGRAM_IDS.PUMP_AMM);
         const [coinCreatorVaultAuthority] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("creator_vault"), poolKeys.coinCreator.toBuffer()], PROGRAM_IDS.PUMP_AMM);
@@ -771,7 +773,7 @@ class PumpTrader {
                 { pubkey: poolKeys.poolQuoteTokenAccount, isSigner: false, isWritable: true },
                 { pubkey: protocolFeeRecipient, isSigner: false, isWritable: false },
                 { pubkey: protocolFeeRecipientTokenAccount, isSigner: false, isWritable: true },
-                { pubkey: spl_token_1.TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+                { pubkey: tokenProgramId, isSigner: false, isWritable: false },
                 { pubkey: spl_token_1.TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
                 { pubkey: web3_js_1.SystemProgram.programId, isSigner: false, isWritable: false },
                 { pubkey: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
@@ -792,7 +794,7 @@ class PumpTrader {
             ])
         });
     }
-    createAmmSellInstruction(poolInfo, userBaseAta, userQuoteAta, baseAmountIn, minQuoteAmountOut) {
+    createAmmSellInstruction(poolInfo, userBaseAta, userQuoteAta, baseAmountIn, minQuoteAmountOut, tokenProgramId) {
         const { pool, poolKeys, globalConfig } = poolInfo;
         const [eventAuthority] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("__event_authority")], PROGRAM_IDS.PUMP_AMM);
         const [coinCreatorVaultAuthority] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("creator_vault"), poolKeys.coinCreator.toBuffer()], PROGRAM_IDS.PUMP_AMM);
@@ -814,7 +816,7 @@ class PumpTrader {
                 { pubkey: poolKeys.poolQuoteTokenAccount, isSigner: false, isWritable: true },
                 { pubkey: protocolFeeRecipient, isSigner: false, isWritable: false },
                 { pubkey: protocolFeeRecipientTokenAccount, isSigner: false, isWritable: true },
-                { pubkey: spl_token_1.TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
+                { pubkey: tokenProgramId, isSigner: false, isWritable: false },
                 { pubkey: spl_token_1.TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
                 { pubkey: web3_js_1.SystemProgram.programId, isSigner: false, isWritable: false },
                 { pubkey: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },

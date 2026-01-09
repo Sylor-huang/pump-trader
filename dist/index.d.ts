@@ -158,8 +158,8 @@ export declare class PumpTrader {
         protocolFeeRecipients: PublicKey[];
     };
     getAmmPoolReserves(poolKeys: any): Promise<PoolReserves>;
-    createAmmBuyInstruction(poolInfo: PoolInfo, userBaseAta: PublicKey, userQuoteAta: PublicKey, baseAmountOut: bigint, maxQuoteAmountIn: bigint): TransactionInstruction;
-    createAmmSellInstruction(poolInfo: PoolInfo, userBaseAta: PublicKey, userQuoteAta: PublicKey, baseAmountIn: bigint, minQuoteAmountOut: bigint): TransactionInstruction;
+    createAmmBuyInstruction(poolInfo: PoolInfo, userBaseAta: PublicKey, userQuoteAta: PublicKey, baseAmountOut: bigint, maxQuoteAmountIn: bigint, tokenProgramId: PublicKey): TransactionInstruction;
+    createAmmSellInstruction(poolInfo: PoolInfo, userBaseAta: PublicKey, userQuoteAta: PublicKey, baseAmountIn: bigint, minQuoteAmountOut: bigint, tokenProgramId: PublicKey): TransactionInstruction;
     confirmTransactionWithPolling(signature: string, lastValidBlockHeight: number, maxAttempts?: number, delayMs?: number): Promise<string>;
     listenTrades(callback: (event: TradeEvent) => void, mintFilter?: PublicKey | null): number;
     fetchMeta(tokenAddr: string): Promise<MetadataInfo | null>;
