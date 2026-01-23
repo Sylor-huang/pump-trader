@@ -50,6 +50,11 @@ export class BonkTrader {
     this.wallet = Keypair.fromSecretKey(
       Buffer.from(bs58.decode(privateKey)) as any,
     );
+    // 预置 Bonk 的两类 IDL URL，便于快速演示与开发
+    this.ammIdlUrl =
+      "https://raw.githubusercontent.com/chainstacklabs/pumpfun-bonkfun-bot/refs/heads/main/idl/raydium_amm_idl.json";
+    this.launchlabIdlUrl =
+      "https://raw.githubusercontent.com/chainstacklabs/pumpfun-bonkfun-bot/refs/heads/main/idl/raydium_launchlab_idl.json";
   }
 
   // Helpers: fetch JSON safely (node compatibility without global fetch)
