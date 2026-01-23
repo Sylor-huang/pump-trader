@@ -5,7 +5,7 @@ import {
   TransactionInstruction,
   SystemProgram,
   ComputeBudgetProgram,
-  Keypair
+  Keypair,
 } from "@solana/web3.js";
 
 import {
@@ -17,7 +17,7 @@ import {
   getTokenMetadata,
   TOKEN_2022_PROGRAM_ID,
   TOKEN_PROGRAM_ID,
-  getMint
+  getMint,
 } from "@solana/spl-token";
 
 import BN from "bn.js";
@@ -125,28 +125,30 @@ const PROGRAM_IDS = {
   PUMP_AMM: new PublicKey("pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA"),
   METADATA: new PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"),
   FEE: new PublicKey("pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ"),
-  EVENT_AUTHORITY: new PublicKey("Ce6TQqeHC9p8KetsN6JsjHK7UTZk7nasjjnr7XxXp9F1")
+  EVENT_AUTHORITY: new PublicKey(
+    "Ce6TQqeHC9p8KetsN6JsjHK7UTZk7nasjjnr7XxXp9F1",
+  ),
 };
 
 const SOL_MINT = new PublicKey("So11111111111111111111111111111111111111112");
 
 const SEEDS = {
   FEE_CONFIG: new Uint8Array([
-    1, 86, 224, 246, 147, 102, 90, 207, 68, 219, 21, 104, 191, 23, 91, 170,
-    81, 137, 203, 151, 245, 210, 255, 59, 101, 93, 43, 182, 253, 109, 24, 176
+    1, 86, 224, 246, 147, 102, 90, 207, 68, 219, 21, 104, 191, 23, 91, 170, 81,
+    137, 203, 151, 245, 210, 255, 59, 101, 93, 43, 182, 253, 109, 24, 176,
   ]),
   AMM_FEE_CONFIG: Buffer.from([
-    12, 20, 222, 252, 130, 94, 198, 118, 148, 37, 8, 24, 187, 101, 64, 101,
-    244, 41, 141, 49, 86, 213, 113, 180, 212, 248, 9, 12, 24, 233, 168, 99
+    12, 20, 222, 252, 130, 94, 198, 118, 148, 37, 8, 24, 187, 101, 64, 101, 244,
+    41, 141, 49, 86, 213, 113, 180, 212, 248, 9, 12, 24, 233, 168, 99,
   ]),
   GLOBAL: Buffer.from("global"),
-  BONDING: Buffer.from("bonding-curve")
+  BONDING: Buffer.from("bonding-curve"),
 };
 
 const DISCRIMINATORS = {
   BUY: Buffer.from([102, 6, 61, 18, 1, 218, 235, 234]),
   SELL: Buffer.from([51, 230, 133, 164, 1, 127, 131, 173]),
-  TRADE_EVENT: Buffer.from([189, 219, 127, 211, 78, 230, 97, 238])
+  TRADE_EVENT: Buffer.from([189, 219, 127, 211, 78, 230, 97, 238]),
 };
 
 const AMM_FEE_BPS = 100n;
@@ -155,7 +157,8 @@ const BPS_DENOMINATOR = 10000n;
 /* ================= 工具函数 ================= */
 
 const u64 = (v: bigint | BN | number): Buffer => {
-  const bn = typeof v === 'bigint' ? new BN(v.toString()) : new BN(v.toString());
+  const bn =
+    typeof v === "bigint" ? new BN(v.toString()) : new BN(v.toString());
   return bn.toArrayLike(Buffer, "le", 8);
 };
 
@@ -172,7 +175,9 @@ const readU32 = (buf: Buffer, offsetObj: { offset: number }): number => {
 
 const readString = (buf: Buffer, offsetObj: { offset: number }): string => {
   const len = readU32(buf, offsetObj);
-  const str = buf.slice(offsetObj.offset, offsetObj.offset + len).toString("utf8");
+  const str = buf
+    .slice(offsetObj.offset, offsetObj.offset + len)
+    .toString("utf8");
   offsetObj.offset += len;
   return str;
 };
@@ -182,10 +187,14 @@ const readString = (buf: Buffer, offsetObj: { offset: number }): string => {
 function parseMetadataAccount(data: Buffer) {
   const offsetObj = { offset: 1 };
 
-  const updateAuthority = new PublicKey(data.slice(offsetObj.offset, offsetObj.offset + 32));
+  const updateAuthority = new PublicKey(
+    data.slice(offsetObj.offset, offsetObj.offset + 32),
+  );
   offsetObj.offset += 32;
 
-  const mint = new PublicKey(data.slice(offsetObj.offset, offsetObj.offset + 32));
+  const mint = new PublicKey(
+    data.slice(offsetObj.offset, offsetObj.offset + 32),
+  );
   offsetObj.offset += 32;
 
   const name = readString(data, offsetObj);
@@ -197,13 +206,13 @@ function parseMetadataAccount(data: Buffer) {
     mint: mint.toBase58(),
     name,
     symbol,
-    uri
+    uri,
   };
 }
 
 function parsePoolKeys(data: Buffer) {
   if (!data || data.length < 280) {
-    throw new Error('Invalid pool account data');
+    throw new Error("Invalid pool account data");
   }
 
   let offset = 8;
@@ -248,7 +257,7 @@ function parsePoolKeys(data: Buffer) {
     poolBaseTokenAccount,
     poolQuoteTokenAccount,
     coinCreator,
-    isMayhemMode
+    isMayhemMode,
   };
 }
 
@@ -264,7 +273,10 @@ export class PumpTrader {
   constructor(rpc: string, privateKey: string) {
     this.connection = new Connection(rpc, "confirmed");
     this.wallet = Keypair.fromSecretKey(bs58.decode(privateKey));
-    this.global = PublicKey.findProgramAddressSync([SEEDS.GLOBAL], PROGRAM_IDS.PUMP)[0];
+    this.global = PublicKey.findProgramAddressSync(
+      [SEEDS.GLOBAL],
+      PROGRAM_IDS.PUMP,
+    )[0];
     this.globalState = null;
     this.tokenProgramCache = new Map();
   }
@@ -284,25 +296,37 @@ export class PumpTrader {
 
     try {
       // 首先尝试获取 TOKEN_2022 的代币信息
-      const mintData = await getMint(this.connection, mint, "confirmed", TOKEN_2022_PROGRAM_ID);
+      const mintData = await getMint(
+        this.connection,
+        mint,
+        "confirmed",
+        TOKEN_2022_PROGRAM_ID,
+      );
       const result: TokenProgramType = {
         type: "TOKEN_2022_PROGRAM_ID",
-        programId: TOKEN_2022_PROGRAM_ID
+        programId: TOKEN_2022_PROGRAM_ID,
       };
       this.tokenProgramCache.set(tokenAddr, result);
       return result;
     } catch (e) {
       try {
         // 如果失败，尝试标准 TOKEN_PROGRAM_ID
-        const mintData = await getMint(this.connection, mint, "confirmed", TOKEN_PROGRAM_ID);
+        const mintData = await getMint(
+          this.connection,
+          mint,
+          "confirmed",
+          TOKEN_PROGRAM_ID,
+        );
         const result: TokenProgramType = {
           type: "TOKEN_PROGRAM_ID",
-          programId: TOKEN_PROGRAM_ID
+          programId: TOKEN_PROGRAM_ID,
         };
         this.tokenProgramCache.set(tokenAddr, result);
         return result;
       } catch (error) {
-        throw new Error(`Failed to detect token program for ${tokenAddr}: ${error}`);
+        throw new Error(
+          `Failed to detect token program for ${tokenAddr}: ${error}`,
+        );
       }
     }
   }
@@ -361,7 +385,7 @@ export class PumpTrader {
       initialVirtualSolReserves: readU64(),
       initialRealTokenReserves: readU64(),
       tokenTotalSupply: readU64(),
-      feeBasisPoints: readU64()
+      feeBasisPoints: readU64(),
     };
 
     return this.globalState;
@@ -372,7 +396,7 @@ export class PumpTrader {
   getBondingPda(mint: PublicKey): PublicKey {
     return PublicKey.findProgramAddressSync(
       [SEEDS.BONDING, mint.toBuffer()],
-      PROGRAM_IDS.PUMP
+      PROGRAM_IDS.PUMP,
     )[0];
   }
 
@@ -402,25 +426,29 @@ export class PumpTrader {
 
   calcBuy(solIn: bigint, state: BondingCurveState): bigint {
     const newVirtualSol = state.virtualSolReserves + solIn;
-    const newVirtualToken = (state.virtualSolReserves * state.virtualTokenReserves) / newVirtualSol;
+    const newVirtualToken =
+      (state.virtualSolReserves * state.virtualTokenReserves) / newVirtualSol;
     return state.virtualTokenReserves - newVirtualToken;
   }
 
   calcSell(tokenIn: bigint, state: BondingCurveState): bigint {
     const newVirtualToken = state.virtualTokenReserves + tokenIn;
-    const newVirtualSol = (state.virtualSolReserves * state.virtualTokenReserves) / newVirtualToken;
+    const newVirtualSol =
+      (state.virtualSolReserves * state.virtualTokenReserves) / newVirtualToken;
     return state.virtualSolReserves - newVirtualSol;
   }
 
   calculateAmmBuyOutput(quoteIn: bigint, reserves: PoolReserves): bigint {
-    const quoteInAfterFee = (quoteIn * (BPS_DENOMINATOR - AMM_FEE_BPS)) / BPS_DENOMINATOR;
+    const quoteInAfterFee =
+      (quoteIn * (BPS_DENOMINATOR - AMM_FEE_BPS)) / BPS_DENOMINATOR;
     const numerator = reserves.baseAmount * quoteInAfterFee;
     const denominator = reserves.quoteAmount + quoteInAfterFee;
     return numerator / denominator;
   }
 
   calculateAmmSellOutput(baseIn: bigint, reserves: PoolReserves): bigint {
-    const baseInAfterFee = (baseIn * (BPS_DENOMINATOR - AMM_FEE_BPS)) / BPS_DENOMINATOR;
+    const baseInAfterFee =
+      (baseIn * (BPS_DENOMINATOR - AMM_FEE_BPS)) / BPS_DENOMINATOR;
     const numerator = reserves.quoteAmount * baseInAfterFee;
     const denominator = reserves.baseAmount + baseInAfterFee;
     return numerator / denominator;
@@ -428,7 +456,9 @@ export class PumpTrader {
 
   /* ---------- 价格查询 ---------- */
 
-  async getPriceAndStatus(tokenAddr: string): Promise<{ price: number; completed: boolean }> {
+  async getPriceAndStatus(
+    tokenAddr: string,
+  ): Promise<{ price: number; completed: boolean }> {
     const mint = new PublicKey(tokenAddr);
     const { state } = await this.loadBonding(mint);
 
@@ -446,13 +476,19 @@ export class PumpTrader {
   async getAmmPrice(mint: PublicKey): Promise<number> {
     const [poolCreator] = PublicKey.findProgramAddressSync(
       [Buffer.from("pool-authority"), mint.toBuffer()],
-      PROGRAM_IDS.PUMP
+      PROGRAM_IDS.PUMP,
     );
 
     const indexBuffer = new BN(0).toArrayLike(Buffer, "le", 2);
     const [pool] = PublicKey.findProgramAddressSync(
-      [Buffer.from("pool"), indexBuffer, poolCreator.toBuffer(), mint.toBuffer(), SOL_MINT.toBuffer()],
-      PROGRAM_IDS.PUMP_AMM
+      [
+        Buffer.from("pool"),
+        indexBuffer,
+        poolCreator.toBuffer(),
+        mint.toBuffer(),
+        SOL_MINT.toBuffer(),
+      ],
+      PROGRAM_IDS.PUMP_AMM,
     );
 
     const acc = await this.connection.getAccountInfo(pool);
@@ -461,7 +497,7 @@ export class PumpTrader {
     const poolKeys = parsePoolKeys(acc.data);
     const [baseInfo, quoteInfo] = await Promise.all([
       this.connection.getTokenAccountBalance(poolKeys.poolBaseTokenAccount),
-      this.connection.getTokenAccountBalance(poolKeys.poolQuoteTokenAccount)
+      this.connection.getTokenAccountBalance(poolKeys.poolQuoteTokenAccount),
     ]);
 
     return quoteInfo.value.uiAmount! / baseInfo.value.uiAmount!;
@@ -474,15 +510,28 @@ export class PumpTrader {
    * @param tokenAddr - 代币地址（可选），如果不传则返回所有代币
    * @returns 如果传入地址则返回该代币的余额数字，否则返回所有代币的详细信息
    */
-  async tokenBalance(tokenAddr?: string): Promise<number | Array<{ mint: string; amount: number; decimals: number; uiAmount: number }>> {
+  async tokenBalance(
+    tokenAddr?: string,
+  ): Promise<
+    | number
+    | Array<{
+        mint: string;
+        amount: number;
+        decimals: number;
+        uiAmount: number;
+      }>
+  > {
     if (tokenAddr) {
       // 查询单个代币
       const mint = new PublicKey(tokenAddr);
       const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(
         this.wallet.publicKey,
-        { mint }
+        { mint },
       );
-      return tokenAccounts.value[0]?.account.data.parsed.info.tokenAmount.uiAmount || 0;
+      return (
+        tokenAccounts.value[0]?.account.data.parsed.info.tokenAmount.uiAmount ||
+        0
+      );
     } else {
       // 查询所有代币
       return this.getAllTokenBalances();
@@ -493,16 +542,18 @@ export class PumpTrader {
    * 获取账户所有代币余额（仅显示余额 > 0 的）
    * @returns 代币信息数组，包含mint地址、余额等信息
    */
-  async getAllTokenBalances(): Promise<Array<{ mint: string; amount: number; decimals: number; uiAmount: number }>> {
+  async getAllTokenBalances(): Promise<
+    Array<{ mint: string; amount: number; decimals: number; uiAmount: number }>
+  > {
     const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(
       this.wallet.publicKey,
-      { programId: TOKEN_PROGRAM_ID }
+      { programId: TOKEN_PROGRAM_ID },
     );
 
     const balances = tokenAccounts.value
       .map((account) => {
         const parsed = account.account.data.parsed;
-        if (parsed.type !== 'account') return null;
+        if (parsed.type !== "account") return null;
 
         const tokenAmount = parsed.info.tokenAmount;
         if (Number(tokenAmount.amount) === 0) return null; // 跳过余额为0的
@@ -511,21 +562,27 @@ export class PumpTrader {
           mint: parsed.info.mint,
           amount: BigInt(tokenAmount.amount),
           decimals: tokenAmount.decimals,
-          uiAmount: tokenAmount.uiAmount || 0
+          uiAmount: tokenAmount.uiAmount || 0,
         };
       })
-      .filter((item) => item !== null) as Array<{ mint: string; amount: bigint; decimals: number; uiAmount: number }>;
+      .filter((item) => item !== null) as Array<{
+      mint: string;
+      amount: bigint;
+      decimals: number;
+      uiAmount: number;
+    }>;
 
     // 同时查询 TOKEN_2022_PROGRAM_ID
-    const token2022Accounts = await this.connection.getParsedTokenAccountsByOwner(
-      this.wallet.publicKey,
-      { programId: TOKEN_2022_PROGRAM_ID }
-    );
+    const token2022Accounts =
+      await this.connection.getParsedTokenAccountsByOwner(
+        this.wallet.publicKey,
+        { programId: TOKEN_2022_PROGRAM_ID },
+      );
 
     const token2022Balances = token2022Accounts.value
       .map((account) => {
         const parsed = account.account.data.parsed;
-        if (parsed.type !== 'account') return null;
+        if (parsed.type !== "account") return null;
 
         const tokenAmount = parsed.info.tokenAmount;
         if (Number(tokenAmount.amount) === 0) return null; // 跳过余额为0的
@@ -534,10 +591,15 @@ export class PumpTrader {
           mint: parsed.info.mint,
           amount: BigInt(tokenAmount.amount),
           decimals: tokenAmount.decimals,
-          uiAmount: tokenAmount.uiAmount || 0
+          uiAmount: tokenAmount.uiAmount || 0,
         };
       })
-      .filter((item) => item !== null) as Array<{ mint: string; amount: bigint; decimals: number; uiAmount: number }>;
+      .filter((item) => item !== null) as Array<{
+      mint: string;
+      amount: bigint;
+      decimals: number;
+      uiAmount: number;
+    }>;
 
     // 合并并去重
     const allBalances = [...balances, ...token2022Balances];
@@ -552,7 +614,7 @@ export class PumpTrader {
         mint: b.mint,
         amount: Number(b.amount),
         decimals: b.decimals,
-        uiAmount: b.uiAmount
+        uiAmount: b.uiAmount,
       }));
 
     return uniqueBalances;
@@ -565,14 +627,18 @@ export class PumpTrader {
 
   /* ---------- ATA 管理 ---------- */
 
-  async ensureAta(tx: Transaction, mint: PublicKey, tokenProgram?: PublicKey): Promise<PublicKey> {
+  async ensureAta(
+    tx: Transaction,
+    mint: PublicKey,
+    tokenProgram?: PublicKey,
+  ): Promise<PublicKey> {
     const program = tokenProgram || TOKEN_2022_PROGRAM_ID;
     const ata = getAssociatedTokenAddressSync(
       mint,
       this.wallet.publicKey,
       false,
       program,
-      ASSOCIATED_TOKEN_PROGRAM_ID
+      ASSOCIATED_TOKEN_PROGRAM_ID,
     );
 
     const acc = await this.connection.getAccountInfo(ata);
@@ -584,8 +650,8 @@ export class PumpTrader {
           this.wallet.publicKey,
           mint,
           program,
-          ASSOCIATED_TOKEN_PROGRAM_ID
-        )
+          ASSOCIATED_TOKEN_PROGRAM_ID,
+        ),
       );
     }
 
@@ -596,14 +662,14 @@ export class PumpTrader {
     tx: Transaction,
     owner: PublicKey,
     mode: "buy" | "sell",
-    lamports?: bigint
+    lamports?: bigint,
   ): Promise<PublicKey> {
     const wsolAta = getAssociatedTokenAddressSync(
       SOL_MINT,
       owner,
       false,
       TOKEN_PROGRAM_ID,
-      ASSOCIATED_TOKEN_PROGRAM_ID
+      ASSOCIATED_TOKEN_PROGRAM_ID,
     );
 
     const acc = await this.connection.getAccountInfo(wsolAta);
@@ -616,18 +682,18 @@ export class PumpTrader {
           owner,
           SOL_MINT,
           TOKEN_PROGRAM_ID,
-          ASSOCIATED_TOKEN_PROGRAM_ID
-        )
+          ASSOCIATED_TOKEN_PROGRAM_ID,
+        ),
       );
     }
 
-    if (mode === 'buy' && lamports) {
+    if (mode === "buy" && lamports) {
       tx.add(
         SystemProgram.transfer({
           fromPubkey: owner,
           toPubkey: wsolAta,
-          lamports: Number(lamports)
-        })
+          lamports: Number(lamports),
+        }),
       );
       tx.add(createSyncNativeInstruction(wsolAta));
     }
@@ -641,7 +707,9 @@ export class PumpTrader {
     if (!priorityOpt?.enableRandom || !priorityOpt.randomRange) {
       return priorityOpt.base;
     }
-    return priorityOpt.base + Math.floor(Math.random() * priorityOpt.randomRange);
+    return (
+      priorityOpt.base + Math.floor(Math.random() * priorityOpt.randomRange)
+    );
   }
 
   calcSlippage({ tradeSize, reserve, slippageOpt }: any): number {
@@ -690,7 +758,11 @@ export class PumpTrader {
   /**
    * 自动判断内盘/外盘并执行买入
    */
-  async autoBuy(tokenAddr: string, totalSolIn: bigint, tradeOpt: TradeOptions): Promise<TradeResult> {
+  async autoBuy(
+    tokenAddr: string,
+    totalSolIn: bigint,
+    tradeOpt: TradeOptions,
+  ): Promise<TradeResult> {
     const mode = await this.getTradeMode(tokenAddr);
     if (mode === "bonding") {
       return this.buy(tokenAddr, totalSolIn, tradeOpt);
@@ -702,7 +774,11 @@ export class PumpTrader {
   /**
    * 自动判断内盘/外盘并执行卖出
    */
-  async autoSell(tokenAddr: string, totalTokenIn: bigint, tradeOpt: TradeOptions): Promise<TradeResult> {
+  async autoSell(
+    tokenAddr: string,
+    totalTokenIn: bigint,
+    tradeOpt: TradeOptions,
+  ): Promise<TradeResult> {
     const mode = await this.getTradeMode(tokenAddr);
     if (mode === "bonding") {
       return this.sell(tokenAddr, totalTokenIn, tradeOpt);
@@ -713,7 +789,11 @@ export class PumpTrader {
 
   /* ---------- 内盘交易 ---------- */
 
-  async buy(tokenAddr: string, totalSolIn: bigint, tradeOpt: TradeOptions): Promise<TradeResult> {
+  async buy(
+    tokenAddr: string,
+    totalSolIn: bigint,
+    tradeOpt: TradeOptions,
+  ): Promise<TradeResult> {
     const mint = new PublicKey(tokenAddr);
     const tokenProgram = await this.detectTokenProgram(tokenAddr);
 
@@ -731,27 +811,30 @@ export class PumpTrader {
       bonding,
       true,
       tokenProgram.programId,
-      ASSOCIATED_TOKEN_PROGRAM_ID
+      ASSOCIATED_TOKEN_PROGRAM_ID,
     );
 
     const [creatorVault] = PublicKey.findProgramAddressSync(
       [Buffer.from("creator-vault"), creator.toBuffer()],
-      PROGRAM_IDS.PUMP
+      PROGRAM_IDS.PUMP,
     );
 
     const [globalVolumeAccumulator] = PublicKey.findProgramAddressSync(
       [Buffer.from("global_volume_accumulator")],
-      PROGRAM_IDS.PUMP
+      PROGRAM_IDS.PUMP,
     );
 
     const [userVolumeAccumulator] = PublicKey.findProgramAddressSync(
-      [Buffer.from("user_volume_accumulator"), this.wallet.publicKey.toBuffer()],
-      PROGRAM_IDS.PUMP
+      [
+        Buffer.from("user_volume_accumulator"),
+        this.wallet.publicKey.toBuffer(),
+      ],
+      PROGRAM_IDS.PUMP,
     );
 
     const [feeConfig] = PublicKey.findProgramAddressSync(
       [Buffer.from("fee_config"), SEEDS.FEE_CONFIG],
-      PROGRAM_IDS.FEE
+      PROGRAM_IDS.FEE,
     );
 
     for (let i = 0; i < solChunks.length; i++) {
@@ -761,14 +844,14 @@ export class PumpTrader {
         const slippageBps = this.calcSlippage({
           tradeSize: solIn,
           reserve: state.virtualSolReserves,
-          slippageOpt: tradeOpt.slippage
+          slippageOpt: tradeOpt.slippage,
         });
         const maxSol = (solIn * BigInt(10_000 + slippageBps)) / 10_000n;
         const priority = this.genPriority(tradeOpt.priority);
 
         const tx = new Transaction().add(
           ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }),
-          ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority })
+          ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority }),
         );
 
         const userAta = await this.ensureAta(tx, mint, tokenProgram.programId);
@@ -778,46 +861,85 @@ export class PumpTrader {
             programId: PROGRAM_IDS.PUMP,
             keys: [
               { pubkey: this.global, isSigner: false, isWritable: false },
-              { pubkey: this.globalState!.feeRecipient, isSigner: false, isWritable: true },
+              {
+                pubkey: this.globalState!.feeRecipient,
+                isSigner: false,
+                isWritable: true,
+              },
               { pubkey: mint, isSigner: false, isWritable: false },
               { pubkey: bonding, isSigner: false, isWritable: true },
-              { pubkey: associatedBondingCurve, isSigner: false, isWritable: true },
+              {
+                pubkey: associatedBondingCurve,
+                isSigner: false,
+                isWritable: true,
+              },
               { pubkey: userAta, isSigner: false, isWritable: true },
-              { pubkey: this.wallet.publicKey, isSigner: true, isWritable: true },
-              { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-              { pubkey: tokenProgram.programId, isSigner: false, isWritable: false },
+              {
+                pubkey: this.wallet.publicKey,
+                isSigner: true,
+                isWritable: true,
+              },
+              {
+                pubkey: SystemProgram.programId,
+                isSigner: false,
+                isWritable: false,
+              },
+              {
+                pubkey: tokenProgram.programId,
+                isSigner: false,
+                isWritable: false,
+              },
               { pubkey: creatorVault, isSigner: false, isWritable: true },
-              { pubkey: PROGRAM_IDS.EVENT_AUTHORITY, isSigner: false, isWritable: false },
+              {
+                pubkey: PROGRAM_IDS.EVENT_AUTHORITY,
+                isSigner: false,
+                isWritable: false,
+              },
               { pubkey: PROGRAM_IDS.PUMP, isSigner: false, isWritable: false },
-              { pubkey: globalVolumeAccumulator, isSigner: false, isWritable: false },
-              { pubkey: userVolumeAccumulator, isSigner: false, isWritable: true },
+              {
+                pubkey: globalVolumeAccumulator,
+                isSigner: false,
+                isWritable: false,
+              },
+              {
+                pubkey: userVolumeAccumulator,
+                isSigner: false,
+                isWritable: true,
+              },
               { pubkey: feeConfig, isSigner: false, isWritable: false },
-              { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false }
+              { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
             ],
-            data: Buffer.concat([DISCRIMINATORS.BUY, u64(tokenOut), u64(maxSol)])
-          })
+            data: Buffer.concat([
+              DISCRIMINATORS.BUY,
+              u64(tokenOut),
+              u64(maxSol),
+            ]),
+          }),
         );
 
         const { blockhash, lastValidBlockHeight } =
-          await this.connection.getLatestBlockhash('finalized');
+          await this.connection.getLatestBlockhash("finalized");
         tx.recentBlockhash = blockhash;
         tx.feePayer = this.wallet.publicKey;
         tx.sign(this.wallet);
 
-        const signature = await this.connection.sendRawTransaction(tx.serialize(), {
-          skipPreflight: false,
-          maxRetries: 2
-        });
+        const signature = await this.connection.sendRawTransaction(
+          tx.serialize(),
+          {
+            skipPreflight: false,
+            maxRetries: 2,
+          },
+        );
 
         pendingTransactions.push({
           signature,
           lastValidBlockHeight,
-          index: i
+          index: i,
         });
       } catch (e) {
         failedTransactions.push({
           index: i,
-          error: (e as Error).message
+          error: (e as Error).message,
         });
       }
     }
@@ -825,7 +947,11 @@ export class PumpTrader {
     return { pendingTransactions, failedTransactions };
   }
 
-  async sell(tokenAddr: string, totalTokenIn: bigint, tradeOpt: TradeOptions): Promise<TradeResult> {
+  async sell(
+    tokenAddr: string,
+    totalTokenIn: bigint,
+    tradeOpt: TradeOptions,
+  ): Promise<TradeResult> {
     const mint = new PublicKey(tokenAddr);
     const tokenProgram = await this.detectTokenProgram(tokenAddr);
 
@@ -835,12 +961,15 @@ export class PumpTrader {
     if (state.complete) throw new Error("Bonding curve already completed");
 
     const totalSolOut = this.calcSell(totalTokenIn, state);
-    const tokenChunks = totalSolOut <= tradeOpt.maxSolPerTx
-      ? [totalTokenIn]
-      : this.splitIntoN(
-        totalTokenIn,
-        Number((totalSolOut + tradeOpt.maxSolPerTx - 1n) / tradeOpt.maxSolPerTx)
-      );
+    const tokenChunks =
+      totalSolOut <= tradeOpt.maxSolPerTx
+        ? [totalTokenIn]
+        : this.splitIntoN(
+            totalTokenIn,
+            Number(
+              (totalSolOut + tradeOpt.maxSolPerTx - 1n) / tradeOpt.maxSolPerTx,
+            ),
+          );
 
     const pendingTransactions: PendingTransaction[] = [];
     const failedTransactions: FailedTransaction[] = [];
@@ -850,7 +979,7 @@ export class PumpTrader {
       bonding,
       true,
       tokenProgram.programId,
-      ASSOCIATED_TOKEN_PROGRAM_ID
+      ASSOCIATED_TOKEN_PROGRAM_ID,
     );
 
     const userAta = getAssociatedTokenAddressSync(
@@ -858,17 +987,17 @@ export class PumpTrader {
       this.wallet.publicKey,
       false,
       tokenProgram.programId,
-      ASSOCIATED_TOKEN_PROGRAM_ID
+      ASSOCIATED_TOKEN_PROGRAM_ID,
     );
 
     const [creatorVault] = PublicKey.findProgramAddressSync(
       [Buffer.from("creator-vault"), creator.toBuffer()],
-      PROGRAM_IDS.PUMP
+      PROGRAM_IDS.PUMP,
     );
 
     const [feeConfig] = PublicKey.findProgramAddressSync(
       [Buffer.from("fee_config"), SEEDS.FEE_CONFIG],
-      PROGRAM_IDS.FEE
+      PROGRAM_IDS.FEE,
     );
 
     for (let i = 0; i < tokenChunks.length; i++) {
@@ -878,14 +1007,14 @@ export class PumpTrader {
         const slippageBps = this.calcSlippage({
           tradeSize: tokenIn,
           reserve: state.virtualTokenReserves,
-          slippageOpt: tradeOpt.slippage
+          slippageOpt: tradeOpt.slippage,
         });
         const minSol = (solOut * BigInt(10_000 - slippageBps)) / 10_000n;
         const priority = this.genPriority(tradeOpt.priority);
 
         const tx = new Transaction().add(
           ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }),
-          ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority })
+          ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority }),
         );
 
         tx.add(
@@ -893,26 +1022,50 @@ export class PumpTrader {
             programId: PROGRAM_IDS.PUMP,
             keys: [
               { pubkey: this.global, isSigner: false, isWritable: false },
-              { pubkey: this.globalState!.feeRecipient, isSigner: false, isWritable: true },
+              {
+                pubkey: this.globalState!.feeRecipient,
+                isSigner: false,
+                isWritable: true,
+              },
               { pubkey: mint, isSigner: false, isWritable: false },
               { pubkey: bonding, isSigner: false, isWritable: true },
-              { pubkey: associatedBondingCurve, isSigner: false, isWritable: true },
+              {
+                pubkey: associatedBondingCurve,
+                isSigner: false,
+                isWritable: true,
+              },
               { pubkey: userAta, isSigner: false, isWritable: true },
-              { pubkey: this.wallet.publicKey, isSigner: true, isWritable: true },
-              { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+              {
+                pubkey: this.wallet.publicKey,
+                isSigner: true,
+                isWritable: true,
+              },
+              {
+                pubkey: SystemProgram.programId,
+                isSigner: false,
+                isWritable: false,
+              },
               { pubkey: creatorVault, isSigner: false, isWritable: true },
-              { pubkey: tokenProgram.programId, isSigner: false, isWritable: false },
-              { pubkey: PROGRAM_IDS.EVENT_AUTHORITY, isSigner: false, isWritable: false },
+              {
+                pubkey: tokenProgram.programId,
+                isSigner: false,
+                isWritable: false,
+              },
+              {
+                pubkey: PROGRAM_IDS.EVENT_AUTHORITY,
+                isSigner: false,
+                isWritable: false,
+              },
               { pubkey: PROGRAM_IDS.PUMP, isSigner: false, isWritable: false },
               { pubkey: feeConfig, isSigner: false, isWritable: false },
-              { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false }
+              { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
             ],
             data: Buffer.concat([
               DISCRIMINATORS.SELL,
               u64(tokenIn),
-              u64(minSol > 0n ? minSol : 1n)
-            ])
-          })
+              u64(minSol > 0n ? minSol : 1n),
+            ]),
+          }),
         );
 
         const { blockhash, lastValidBlockHeight } =
@@ -921,16 +1074,18 @@ export class PumpTrader {
         tx.feePayer = this.wallet.publicKey;
         tx.sign(this.wallet);
 
-        const signature = await this.connection.sendRawTransaction(tx.serialize());
+        const signature = await this.connection.sendRawTransaction(
+          tx.serialize(),
+        );
         pendingTransactions.push({
           signature,
           lastValidBlockHeight,
-          index: i
+          index: i,
         });
       } catch (e) {
         failedTransactions.push({
           index: i,
-          error: (e as Error).message
+          error: (e as Error).message,
         });
       }
     }
@@ -940,7 +1095,11 @@ export class PumpTrader {
 
   /* ---------- 外盘交易 ---------- */
 
-  async ammBuy(tokenAddr: string, totalSolIn: bigint, tradeOpt: TradeOptions): Promise<TradeResult> {
+  async ammBuy(
+    tokenAddr: string,
+    totalSolIn: bigint,
+    tradeOpt: TradeOptions,
+  ): Promise<TradeResult> {
     const mint = new PublicKey(tokenAddr);
     const poolInfo = await this.getAmmPoolInfo(mint);
     const reserves = await this.getAmmPoolReserves(poolInfo.poolKeys);
@@ -956,22 +1115,26 @@ export class PumpTrader {
         const slippageBps = this.calcSlippage({
           tradeSize: solIn,
           reserve: reserves.quoteAmount,
-          slippageOpt: tradeOpt.slippage
+          slippageOpt: tradeOpt.slippage,
         });
         const maxQuoteIn = (solIn * BigInt(10_000 + slippageBps)) / 10_000n;
         const priority = this.genPriority(tradeOpt.priority);
 
         const tx = new Transaction().add(
           ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }),
-          ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority })
+          ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority }),
         );
 
-        const userBaseAta = await this.ensureAta(tx, poolInfo.poolKeys.baseMint, tokenProgram.programId);
+        const userBaseAta = await this.ensureAta(
+          tx,
+          poolInfo.poolKeys.baseMint,
+          tokenProgram.programId,
+        );
         const userQuoteAta = await this.ensureWSOLAta(
           tx,
           this.wallet.publicKey,
           "buy",
-          maxQuoteIn
+          maxQuoteIn,
         );
 
         const buyIx = this.createAmmBuyInstruction(
@@ -980,7 +1143,7 @@ export class PumpTrader {
           userQuoteAta,
           baseAmountOut,
           maxQuoteIn,
-          tokenProgram.programId
+          tokenProgram.programId,
         );
 
         tx.add(buyIx);
@@ -988,30 +1151,33 @@ export class PumpTrader {
           createCloseAccountInstruction(
             userQuoteAta,
             this.wallet.publicKey,
-            this.wallet.publicKey
-          )
+            this.wallet.publicKey,
+          ),
         );
 
         const { blockhash, lastValidBlockHeight } =
-          await this.connection.getLatestBlockhash('finalized');
+          await this.connection.getLatestBlockhash("finalized");
         tx.recentBlockhash = blockhash;
         tx.feePayer = this.wallet.publicKey;
         tx.sign(this.wallet);
 
-        const signature = await this.connection.sendRawTransaction(tx.serialize(), {
-          skipPreflight: false,
-          maxRetries: 2
-        });
+        const signature = await this.connection.sendRawTransaction(
+          tx.serialize(),
+          {
+            skipPreflight: false,
+            maxRetries: 2,
+          },
+        );
 
         pendingTransactions.push({
           signature,
           lastValidBlockHeight,
-          index: i
+          index: i,
         });
       } catch (e) {
         failedTransactions.push({
           index: i,
-          error: (e as Error).message
+          error: (e as Error).message,
         });
       }
     }
@@ -1019,18 +1185,25 @@ export class PumpTrader {
     return { pendingTransactions, failedTransactions };
   }
 
-  async ammSell(tokenAddr: string, totalTokenIn: bigint, tradeOpt: TradeOptions): Promise<TradeResult> {
+  async ammSell(
+    tokenAddr: string,
+    totalTokenIn: bigint,
+    tradeOpt: TradeOptions,
+  ): Promise<TradeResult> {
     const mint = new PublicKey(tokenAddr);
     const poolInfo = await this.getAmmPoolInfo(mint);
     const reserves = await this.getAmmPoolReserves(poolInfo.poolKeys);
     const totalSolOut = this.calculateAmmSellOutput(totalTokenIn, reserves);
     const tokenProgram = await this.detectTokenProgram(tokenAddr);
-    const tokenChunks = totalSolOut <= tradeOpt.maxSolPerTx
-      ? [totalTokenIn]
-      : this.splitIntoN(
-        totalTokenIn,
-        Number((totalSolOut + tradeOpt.maxSolPerTx - 1n) / tradeOpt.maxSolPerTx)
-      );
+    const tokenChunks =
+      totalSolOut <= tradeOpt.maxSolPerTx
+        ? [totalTokenIn]
+        : this.splitIntoN(
+            totalTokenIn,
+            Number(
+              (totalSolOut + tradeOpt.maxSolPerTx - 1n) / tradeOpt.maxSolPerTx,
+            ),
+          );
 
     const pendingTransactions: PendingTransaction[] = [];
     const failedTransactions: FailedTransaction[] = [];
@@ -1042,18 +1215,26 @@ export class PumpTrader {
         const slippageBps = this.calcSlippage({
           tradeSize: tokenIn,
           reserve: reserves.baseAmount,
-          slippageOpt: tradeOpt.slippage
+          slippageOpt: tradeOpt.slippage,
         });
         const minQuoteOut = (solOut * BigInt(10_000 - slippageBps)) / 10_000n;
         const priority = this.genPriority(tradeOpt.priority);
 
         const tx = new Transaction().add(
           ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }),
-          ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority })
+          ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority }),
         );
 
-        const userBaseAta = await this.ensureAta(tx, poolInfo.poolKeys.baseMint, tokenProgram.programId);
-        const userQuoteAta = await this.ensureWSOLAta(tx, this.wallet.publicKey, "sell");
+        const userBaseAta = await this.ensureAta(
+          tx,
+          poolInfo.poolKeys.baseMint,
+          tokenProgram.programId,
+        );
+        const userQuoteAta = await this.ensureWSOLAta(
+          tx,
+          this.wallet.publicKey,
+          "sell",
+        );
 
         const sellIx = this.createAmmSellInstruction(
           poolInfo,
@@ -1061,7 +1242,7 @@ export class PumpTrader {
           userQuoteAta,
           tokenIn,
           minQuoteOut,
-          tokenProgram.programId
+          tokenProgram.programId,
         );
 
         tx.add(sellIx);
@@ -1069,30 +1250,33 @@ export class PumpTrader {
           createCloseAccountInstruction(
             userQuoteAta,
             this.wallet.publicKey,
-            this.wallet.publicKey
-          )
+            this.wallet.publicKey,
+          ),
         );
 
         const { blockhash, lastValidBlockHeight } =
-          await this.connection.getLatestBlockhash('finalized');
+          await this.connection.getLatestBlockhash("finalized");
         tx.recentBlockhash = blockhash;
         tx.feePayer = this.wallet.publicKey;
         tx.sign(this.wallet);
 
-        const signature = await this.connection.sendRawTransaction(tx.serialize(), {
-          skipPreflight: false,
-          maxRetries: 2
-        });
+        const signature = await this.connection.sendRawTransaction(
+          tx.serialize(),
+          {
+            skipPreflight: false,
+            maxRetries: 2,
+          },
+        );
 
         pendingTransactions.push({
           signature,
           lastValidBlockHeight,
-          index: i
+          index: i,
         });
       } catch (e) {
         failedTransactions.push({
           index: i,
-          error: (e as Error).message
+          error: (e as Error).message,
         });
       }
     }
@@ -1105,7 +1289,7 @@ export class PumpTrader {
   async getAmmPoolInfo(mint: PublicKey): Promise<PoolInfo> {
     const [poolAuthority] = PublicKey.findProgramAddressSync(
       [Buffer.from("pool-authority"), mint.toBuffer()],
-      PROGRAM_IDS.PUMP
+      PROGRAM_IDS.PUMP,
     );
 
     const [pool] = PublicKey.findProgramAddressSync(
@@ -1114,9 +1298,9 @@ export class PumpTrader {
         new BN(0).toArrayLike(Buffer, "le", 2),
         poolAuthority.toBuffer(),
         mint.toBuffer(),
-        SOL_MINT.toBuffer()
+        SOL_MINT.toBuffer(),
       ],
-      PROGRAM_IDS.PUMP_AMM
+      PROGRAM_IDS.PUMP_AMM,
     );
 
     const acc = await this.connection.getAccountInfo(pool);
@@ -1126,13 +1310,17 @@ export class PumpTrader {
 
     const [globalConfigPda] = PublicKey.findProgramAddressSync(
       [Buffer.from("global_config")],
-      PROGRAM_IDS.PUMP_AMM
+      PROGRAM_IDS.PUMP_AMM,
     );
 
-    const globalConfigAcc = await this.connection.getAccountInfo(globalConfigPda);
+    const globalConfigAcc =
+      await this.connection.getAccountInfo(globalConfigPda);
     if (!globalConfigAcc) throw new Error("Global config not found");
 
-    const globalConfig = this.parseAmmGlobalConfig(globalConfigAcc.data, globalConfigPda);
+    const globalConfig = this.parseAmmGlobalConfig(
+      globalConfigAcc.data,
+      globalConfigPda,
+    );
 
     return { pool, poolAuthority, poolKeys, globalConfig };
   }
@@ -1149,7 +1337,9 @@ export class PumpTrader {
 
     const protocolFeeRecipients: PublicKey[] = [];
     for (let i = 0; i < 8; i++) {
-      protocolFeeRecipients.push(new PublicKey(data.slice(offset, offset + 32)));
+      protocolFeeRecipients.push(
+        new PublicKey(data.slice(offset, offset + 32)),
+      );
       offset += 32;
     }
 
@@ -1159,14 +1349,14 @@ export class PumpTrader {
   async getAmmPoolReserves(poolKeys: any): Promise<PoolReserves> {
     const [baseInfo, quoteInfo] = await Promise.all([
       this.connection.getTokenAccountBalance(poolKeys.poolBaseTokenAccount),
-      this.connection.getTokenAccountBalance(poolKeys.poolQuoteTokenAccount)
+      this.connection.getTokenAccountBalance(poolKeys.poolQuoteTokenAccount),
     ]);
 
     return {
       baseAmount: BigInt(baseInfo.value.amount),
       quoteAmount: BigInt(quoteInfo.value.amount),
       baseDecimals: baseInfo.value.decimals,
-      quoteDecimals: quoteInfo.value.decimals
+      quoteDecimals: quoteInfo.value.decimals,
     };
   }
 
@@ -1178,18 +1368,18 @@ export class PumpTrader {
     userQuoteAta: PublicKey,
     baseAmountOut: bigint,
     maxQuoteAmountIn: bigint,
-    tokenProgramId: PublicKey
+    tokenProgramId: PublicKey,
   ): TransactionInstruction {
     const { pool, poolKeys, globalConfig } = poolInfo;
 
     const [eventAuthority] = PublicKey.findProgramAddressSync(
       [Buffer.from("__event_authority")],
-      PROGRAM_IDS.PUMP_AMM
+      PROGRAM_IDS.PUMP_AMM,
     );
 
     const [coinCreatorVaultAuthority] = PublicKey.findProgramAddressSync(
       [Buffer.from("creator_vault"), poolKeys.coinCreator.toBuffer()],
-      PROGRAM_IDS.PUMP_AMM
+      PROGRAM_IDS.PUMP_AMM,
     );
 
     const coinCreatorVaultAta = getAssociatedTokenAddressSync(
@@ -1197,22 +1387,25 @@ export class PumpTrader {
       coinCreatorVaultAuthority,
       true,
       TOKEN_PROGRAM_ID,
-      ASSOCIATED_TOKEN_PROGRAM_ID
+      ASSOCIATED_TOKEN_PROGRAM_ID,
     );
 
     const [globalVolumeAccumulator] = PublicKey.findProgramAddressSync(
       [Buffer.from("global_volume_accumulator")],
-      PROGRAM_IDS.PUMP_AMM
+      PROGRAM_IDS.PUMP_AMM,
     );
 
     const [userVolumeAccumulator] = PublicKey.findProgramAddressSync(
-      [Buffer.from("user_volume_accumulator"), this.wallet.publicKey.toBuffer()],
-      PROGRAM_IDS.PUMP_AMM
+      [
+        Buffer.from("user_volume_accumulator"),
+        this.wallet.publicKey.toBuffer(),
+      ],
+      PROGRAM_IDS.PUMP_AMM,
     );
 
     const [feeConfig] = PublicKey.findProgramAddressSync(
       [Buffer.from("fee_config"), SEEDS.AMM_FEE_CONFIG],
-      PROGRAM_IDS.FEE
+      PROGRAM_IDS.FEE,
     );
 
     const protocolFeeRecipient = globalConfig.protocolFeeRecipients[0];
@@ -1221,7 +1414,7 @@ export class PumpTrader {
       protocolFeeRecipient,
       true,
       TOKEN_PROGRAM_ID,
-      ASSOCIATED_TOKEN_PROGRAM_ID
+      ASSOCIATED_TOKEN_PROGRAM_ID,
     );
 
     return new TransactionInstruction({
@@ -1234,29 +1427,49 @@ export class PumpTrader {
         { pubkey: poolKeys.quoteMint, isSigner: false, isWritable: false },
         { pubkey: userBaseAta, isSigner: false, isWritable: true },
         { pubkey: userQuoteAta, isSigner: false, isWritable: true },
-        { pubkey: poolKeys.poolBaseTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: poolKeys.poolQuoteTokenAccount, isSigner: false, isWritable: true },
+        {
+          pubkey: poolKeys.poolBaseTokenAccount,
+          isSigner: false,
+          isWritable: true,
+        },
+        {
+          pubkey: poolKeys.poolQuoteTokenAccount,
+          isSigner: false,
+          isWritable: true,
+        },
         { pubkey: protocolFeeRecipient, isSigner: false, isWritable: false },
-        { pubkey: protocolFeeRecipientTokenAccount, isSigner: false, isWritable: true },
+        {
+          pubkey: protocolFeeRecipientTokenAccount,
+          isSigner: false,
+          isWritable: true,
+        },
         { pubkey: tokenProgramId, isSigner: false, isWritable: false },
         { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-        { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        {
+          pubkey: ASSOCIATED_TOKEN_PROGRAM_ID,
+          isSigner: false,
+          isWritable: false,
+        },
         { pubkey: eventAuthority, isSigner: false, isWritable: false },
         { pubkey: PROGRAM_IDS.PUMP_AMM, isSigner: false, isWritable: false },
         { pubkey: coinCreatorVaultAta, isSigner: false, isWritable: true },
-        { pubkey: coinCreatorVaultAuthority, isSigner: false, isWritable: false },
+        {
+          pubkey: coinCreatorVaultAuthority,
+          isSigner: false,
+          isWritable: false,
+        },
         { pubkey: globalVolumeAccumulator, isSigner: false, isWritable: false },
         { pubkey: userVolumeAccumulator, isSigner: false, isWritable: true },
         { pubkey: feeConfig, isSigner: false, isWritable: false },
-        { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false }
+        { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
       ],
       data: Buffer.concat([
         DISCRIMINATORS.BUY,
         u64(baseAmountOut),
         u64(maxQuoteAmountIn),
-        Buffer.from([1, 1])
-      ])
+        Buffer.from([1, 1]),
+      ]),
     });
   }
 
@@ -1266,18 +1479,18 @@ export class PumpTrader {
     userQuoteAta: PublicKey,
     baseAmountIn: bigint,
     minQuoteAmountOut: bigint,
-    tokenProgramId: PublicKey
+    tokenProgramId: PublicKey,
   ): TransactionInstruction {
     const { pool, poolKeys, globalConfig } = poolInfo;
 
     const [eventAuthority] = PublicKey.findProgramAddressSync(
       [Buffer.from("__event_authority")],
-      PROGRAM_IDS.PUMP_AMM
+      PROGRAM_IDS.PUMP_AMM,
     );
 
     const [coinCreatorVaultAuthority] = PublicKey.findProgramAddressSync(
       [Buffer.from("creator_vault"), poolKeys.coinCreator.toBuffer()],
-      PROGRAM_IDS.PUMP_AMM
+      PROGRAM_IDS.PUMP_AMM,
     );
 
     const coinCreatorVaultAta = getAssociatedTokenAddressSync(
@@ -1285,12 +1498,12 @@ export class PumpTrader {
       coinCreatorVaultAuthority,
       true,
       TOKEN_PROGRAM_ID,
-      ASSOCIATED_TOKEN_PROGRAM_ID
+      ASSOCIATED_TOKEN_PROGRAM_ID,
     );
 
     const [feeConfig] = PublicKey.findProgramAddressSync(
       [Buffer.from("fee_config"), SEEDS.AMM_FEE_CONFIG],
-      PROGRAM_IDS.FEE
+      PROGRAM_IDS.FEE,
     );
 
     const protocolFeeRecipient = globalConfig.protocolFeeRecipients[0];
@@ -1299,7 +1512,7 @@ export class PumpTrader {
       protocolFeeRecipient,
       true,
       TOKEN_PROGRAM_ID,
-      ASSOCIATED_TOKEN_PROGRAM_ID
+      ASSOCIATED_TOKEN_PROGRAM_ID,
     );
 
     return new TransactionInstruction({
@@ -1312,26 +1525,46 @@ export class PumpTrader {
         { pubkey: poolKeys.quoteMint, isSigner: false, isWritable: false },
         { pubkey: userBaseAta, isSigner: false, isWritable: true },
         { pubkey: userQuoteAta, isSigner: false, isWritable: true },
-        { pubkey: poolKeys.poolBaseTokenAccount, isSigner: false, isWritable: true },
-        { pubkey: poolKeys.poolQuoteTokenAccount, isSigner: false, isWritable: true },
+        {
+          pubkey: poolKeys.poolBaseTokenAccount,
+          isSigner: false,
+          isWritable: true,
+        },
+        {
+          pubkey: poolKeys.poolQuoteTokenAccount,
+          isSigner: false,
+          isWritable: true,
+        },
         { pubkey: protocolFeeRecipient, isSigner: false, isWritable: false },
-        { pubkey: protocolFeeRecipientTokenAccount, isSigner: false, isWritable: true },
+        {
+          pubkey: protocolFeeRecipientTokenAccount,
+          isSigner: false,
+          isWritable: true,
+        },
         { pubkey: tokenProgramId, isSigner: false, isWritable: false },
         { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-        { pubkey: ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+        {
+          pubkey: ASSOCIATED_TOKEN_PROGRAM_ID,
+          isSigner: false,
+          isWritable: false,
+        },
         { pubkey: eventAuthority, isSigner: false, isWritable: false },
         { pubkey: PROGRAM_IDS.PUMP_AMM, isSigner: false, isWritable: false },
         { pubkey: coinCreatorVaultAta, isSigner: false, isWritable: true },
-        { pubkey: coinCreatorVaultAuthority, isSigner: false, isWritable: false },
+        {
+          pubkey: coinCreatorVaultAuthority,
+          isSigner: false,
+          isWritable: false,
+        },
         { pubkey: feeConfig, isSigner: false, isWritable: false },
-        { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false }
+        { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
       ],
       data: Buffer.concat([
         DISCRIMINATORS.SELL,
         u64(baseAmountIn),
-        u64(minQuoteAmountOut > 0n ? minQuoteAmountOut : 1n)
-      ])
+        u64(minQuoteAmountOut > 0n ? minQuoteAmountOut : 1n),
+      ]),
     });
   }
 
@@ -1341,41 +1574,44 @@ export class PumpTrader {
     signature: string,
     lastValidBlockHeight: number,
     maxAttempts: number = 5,
-    delayMs: number = 2000
+    delayMs: number = 2000,
   ): Promise<string> {
-    console.log('✅ 交易已发送:', signature);
-    console.log('🔗 查看交易: https://solscan.io/tx/' + signature);
+    console.log("✅ 交易已发送:", signature);
+    console.log("🔗 查看交易: https://solscan.io/tx/" + signature);
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      await new Promise(resolve => setTimeout(resolve, delayMs));
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
 
       try {
         console.log(`🔍 检查交易状态 (${attempt}/${maxAttempts})...`);
 
         const txInfo = await this.connection.getTransaction(signature, {
-          commitment: 'confirmed',
-          maxSupportedTransactionVersion: 0
+          commitment: "confirmed",
+          maxSupportedTransactionVersion: 0,
         });
 
         if (txInfo) {
           if (txInfo.meta?.err) {
-            console.error('❌ 交易失败:', txInfo.meta.err);
-            throw new Error('交易失败: ' + JSON.stringify(txInfo.meta.err));
+            console.error("❌ 交易失败:", txInfo.meta.err);
+            throw new Error("交易失败: " + JSON.stringify(txInfo.meta.err));
           }
 
-          console.log('✅ 交易已确认!');
+          console.log("✅ 交易已确认!");
           return signature;
         }
 
-        const currentBlockHeight = await this.connection.getBlockHeight('finalized');
+        const currentBlockHeight =
+          await this.connection.getBlockHeight("finalized");
         if (currentBlockHeight > lastValidBlockHeight) {
-          console.log('⚠️ 交易已过期（超过有效区块高度）');
-          throw new Error('交易过期：未在有效区块高度内确认');
+          console.log("⚠️ 交易已过期（超过有效区块高度）");
+          throw new Error("交易过期：未在有效区块高度内确认");
         }
-
       } catch (error) {
         const err = error as Error;
-        if (err.message?.includes('交易失败') || err.message?.includes('交易过期')) {
+        if (
+          err.message?.includes("交易失败") ||
+          err.message?.includes("交易过期")
+        ) {
           throw error;
         }
         console.log(`⚠️ 查询出错，继续重试: ${err.message}`);
@@ -1383,20 +1619,26 @@ export class PumpTrader {
     }
 
     throw new Error(
-      `交易确认超时（已尝试 ${maxAttempts} 次），签名: ${signature}。请手动检查交易状态。`
+      `交易确认超时（已尝试 ${maxAttempts} 次），签名: ${signature}。请手动检查交易状态。`,
     );
   }
 
   /* ---------- 事件监听 ---------- */
 
-  listenTrades(callback: (event: TradeEvent) => void, mintFilter?: PublicKey | null) {
+  listenTrades(
+    callback: (event: TradeEvent) => void,
+    mintFilter?: PublicKey | null,
+  ) {
     return this.connection.onLogs(
       PROGRAM_IDS.PUMP,
       (log) => {
         for (const logLine of log.logs) {
           if (!logLine.startsWith("Program data: ")) continue;
 
-          const buf = Buffer.from(logLine.replace("Program data: ", ""), "base64");
+          const buf = Buffer.from(
+            logLine.replace("Program data: ", ""),
+            "base64",
+          );
 
           if (!buf.subarray(0, 8).equals(DISCRIMINATORS.TRADE_EVENT)) continue;
 
@@ -1422,11 +1664,11 @@ export class PumpTrader {
             isBuy,
             user: user.toBase58(),
             timestamp,
-            signature: log.signature
+            signature: log.signature,
           });
         }
       },
-      "confirmed"
+      "confirmed",
     );
   }
 
@@ -1440,18 +1682,22 @@ export class PumpTrader {
         this.connection,
         mint,
         "confirmed",
-        TOKEN_2022_PROGRAM_ID
+        TOKEN_2022_PROGRAM_ID,
       );
 
       return {
         name: metadata?.name || "",
         symbol: metadata?.symbol || "",
-        uri: metadata?.uri || ""
+        uri: metadata?.uri || "",
       };
     } catch (e) {
       const metadataPda = PublicKey.findProgramAddressSync(
-        [Buffer.from("metadata"), PROGRAM_IDS.METADATA.toBuffer(), mint.toBuffer()],
-        PROGRAM_IDS.METADATA
+        [
+          Buffer.from("metadata"),
+          PROGRAM_IDS.METADATA.toBuffer(),
+          mint.toBuffer(),
+        ],
+        PROGRAM_IDS.METADATA,
       )[0];
 
       const acc = await this.connection.getAccountInfo(metadataPda);
@@ -1460,9 +1706,9 @@ export class PumpTrader {
       const meta = parseMetadataAccount(acc.data);
 
       return {
-        name: meta?.name?.replace(/\u0000/g, '') || "",
-        symbol: meta?.symbol?.replace(/\u0000/g, '') || "",
-        uri: meta?.uri?.replace(/\u0000/g, '') || ""
+        name: meta?.name?.replace(/\u0000/g, "") || "",
+        symbol: meta?.symbol?.replace(/\u0000/g, "") || "",
+        uri: meta?.uri?.replace(/\u0000/g, "") || "",
       };
     }
   }
@@ -1508,5 +1754,8 @@ export type {
   GlobalState,
   TokenProgramType,
   PoolInfo,
-  MetadataInfo
+  MetadataInfo,
 };
+
+// BonkTrader interface (experimental)
+export { BonkTrader } from "./bonk_trader";

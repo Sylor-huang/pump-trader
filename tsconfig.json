@@ -10,10 +10,6 @@
     "skipLibCheck": true,
     "resolveJsonModule": true
   },
-  "include": [
-    "index.ts"
-  ],
-  "exclude": [
-    "node_modules"
-  ]
+  "include": ["index.ts", "bonk_trader.ts"],
+  "exclude": ["node_modules"]
 }
