@@ -1070,6 +1070,11 @@ export class PumpTrader {
 
   createAmmBuyInstruction(poolInfo, userBaseAta, userQuoteAta, baseAmountOut, maxQuoteAmountIn, tokenProgramId) {
     const { pool, poolKeys, globalConfig } = poolInfo;
+    const bondingCurveV2Mint = poolKeys.baseMint.equals(SOL_MINT) ? poolKeys.quoteMint : poolKeys.baseMint;
+    const [bondingCurveV2] = PublicKey.findProgramAddressSync(
+      [Buffer.from("bonding-curve-v2"), bondingCurveV2Mint.toBuffer()],
+      PROGRAM_IDS.PUMP
+    );
 
     const [eventAuthority] = PublicKey.findProgramAddressSync(
       [Buffer.from("__event_authority")],
@@ -1138,7 +1143,8 @@ export class PumpTrader {
         { pubkey: globalVolumeAccumulator, isSigner: false, isWritable: false },
         { pubkey: userVolumeAccumulator, isSigner: false, isWritable: true },
         { pubkey: feeConfig, isSigner: false, isWritable: false },
-        { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false }
+        { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
+        { pubkey: bondingCurveV2, isSigner: false, isWritable: false }
       ],
       data: Buffer.concat([
         DISCRIMINATORS.BUY,

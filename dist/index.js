@@ -753,6 +753,8 @@ class PumpTrader {
     /* ---------- AMM 指令构建 ---------- */
     createAmmBuyInstruction(poolInfo, userBaseAta, userQuoteAta, baseAmountOut, maxQuoteAmountIn, tokenProgramId) {
         const { pool, poolKeys, globalConfig } = poolInfo;
+        const bondingCurveV2Mint = poolKeys.baseMint.equals(SOL_MINT) ? poolKeys.quoteMint : poolKeys.baseMint;
+        const [bondingCurveV2] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("bonding-curve-v2"), bondingCurveV2Mint.toBuffer()], PROGRAM_IDS.PUMP);
         const [eventAuthority] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("__event_authority")], PROGRAM_IDS.PUMP_AMM);
         const [coinCreatorVaultAuthority] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("creator_vault"), poolKeys.coinCreator.toBuffer()], PROGRAM_IDS.PUMP_AMM);
         const coinCreatorVaultAta = (0, spl_token_1.getAssociatedTokenAddressSync)(SOL_MINT, coinCreatorVaultAuthority, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
@@ -786,7 +788,8 @@ class PumpTrader {
                 { pubkey: globalVolumeAccumulator, isSigner: false, isWritable: false },
                 { pubkey: userVolumeAccumulator, isSigner: false, isWritable: true },
                 { pubkey: feeConfig, isSigner: false, isWritable: false },
-                { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false }
+                { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
+                { pubkey: bondingCurveV2, isSigner: false, isWritable: false }
             ],
             data: Buffer.concat([
                 DISCRIMINATORS.BUY,
