@@ -1257,7 +1257,8 @@ export class PumpTrader {
         DISCRIMINATORS.BUY,
         u64(baseAmountOut),
         u64(maxQuoteAmountIn),
-        Buffer.from([1, 1])
+        // trackVolume = Some(false) to avoid recent overflow path in pump-amm buy accounting
+        Buffer.from([1, 0])
       ])
     });
   }

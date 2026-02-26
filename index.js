@@ -1144,7 +1144,7 @@ export class PumpTrader {
         DISCRIMINATORS.BUY,
         u64(baseAmountOut),
         u64(maxQuoteAmountIn),
-        Buffer.from([1, 1]) // trackVolume = Some(true)
+        Buffer.from([1, 0]) // trackVolume = Some(false)
       ])
     });
   }
