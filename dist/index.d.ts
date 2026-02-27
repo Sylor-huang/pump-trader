@@ -33,6 +33,8 @@ interface BondingCurveState {
     realSolReserves: bigint;
     tokenTotalSupply: bigint;
     complete: boolean;
+    isMayhemMode?: boolean;
+    isCashbackCoin?: boolean;
 }
 interface BondingInfo {
     bonding: PublicKey;

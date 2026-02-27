@@ -141,6 +141,8 @@ function parsePoolKeys(data) {
   offset += 32;
 
   const isMayhemMode = data.readUInt8(offset) === 1;
+  offset += 1;
+  const isCashbackCoin = offset < data.length ? data.readUInt8(offset) === 1 : false;
 
   return {
     creator,
@@ -150,7 +152,8 @@ function parsePoolKeys(data) {
     poolBaseTokenAccount,
     poolQuoteTokenAccount,
     coinCreator,
-    isMayhemMode
+    isMayhemMode,
+    isCashbackCoin
   };
 }
 
@@ -309,6 +312,10 @@ export class PumpTrader {
     offset += 1;
 
     const creator = new PublicKey(data.slice(offset, offset + 32));
+    offset += 32;
+    state.isMayhemMode = offset < data.length ? data[offset] === 1 : false;
+    offset += 1;
+    state.isCashbackCoin = offset < data.length ? data[offset] === 1 : false;
 
     return { bonding, state, creator };
   }
@@ -661,6 +668,17 @@ export class PumpTrader {
       PROGRAM_IDS.FEE
     );
 
+    const [userVolumeAccumulator] = PublicKey.findProgramAddressSync(
+      [Buffer.from("user_volume_accumulator"), this.wallet.publicKey.toBuffer()],
+      PROGRAM_IDS.PUMP
+    );
+
+    const sellRemainingKeys = [];
+    if (state.isCashbackCoin) {
+      sellRemainingKeys.push({ pubkey: userVolumeAccumulator, isSigner: false, isWritable: true });
+    }
+    sellRemainingKeys.push({ pubkey: bondingCurveV2, isSigner: false, isWritable: false });
+
     for (let i = 0; i < solChunks.length; i++) {
       try {
         const solIn = solChunks[i];
@@ -815,7 +833,7 @@ export class PumpTrader {
               { pubkey: PROGRAM_IDS.PUMP, isSigner: false, isWritable: false },
               { pubkey: feeConfig, isSigner: false, isWritable: false },
               { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
-              { pubkey: bondingCurveV2, isSigner: false, isWritable: false }
+              ...sellRemainingKeys
             ],
             data: Buffer.concat([
               DISCRIMINATORS.SELL,
@@ -1136,6 +1154,19 @@ export class PumpTrader {
       ASSOCIATED_TOKEN_PROGRAM_ID
     );
 
+    const remainingKeys = [];
+    if (poolKeys.isCashbackCoin) {
+      const userVolumeAccumulatorWsolAta = getAssociatedTokenAddressSync(
+        SOL_MINT,
+        userVolumeAccumulator,
+        true,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      );
+      remainingKeys.push({ pubkey: userVolumeAccumulatorWsolAta, isSigner: false, isWritable: true });
+    }
+    remainingKeys.push({ pubkey: poolV2, isSigner: false, isWritable: false });
+
     return new TransactionInstruction({
       programId: PROGRAM_IDS.PUMP_AMM,
       keys: [
@@ -1162,7 +1193,7 @@ export class PumpTrader {
         { pubkey: userVolumeAccumulator, isSigner: false, isWritable: true },
         { pubkey: feeConfig, isSigner: false, isWritable: false },
         { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
-        { pubkey: poolV2, isSigner: false, isWritable: false }
+        ...remainingKeys
       ],
       data: Buffer.concat([
         DISCRIMINATORS.BUY,
@@ -1209,6 +1240,28 @@ export class PumpTrader {
       ASSOCIATED_TOKEN_PROGRAM_ID
     );
 
+    const [userVolumeAccumulator] = PublicKey.findProgramAddressSync(
+      [Buffer.from("user_volume_accumulator"), this.wallet.publicKey.toBuffer()],
+      PROGRAM_IDS.PUMP_AMM
+    );
+
+    const userVolumeAccumulatorWsolAta = getAssociatedTokenAddressSync(
+      SOL_MINT,
+      userVolumeAccumulator,
+      true,
+      TOKEN_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    );
+
+    const remainingKeys = [];
+    if (poolKeys.isCashbackCoin) {
+      remainingKeys.push(
+        { pubkey: userVolumeAccumulatorWsolAta, isSigner: false, isWritable: true },
+        { pubkey: userVolumeAccumulator, isSigner: false, isWritable: true }
+      );
+    }
+    remainingKeys.push({ pubkey: poolV2, isSigner: false, isWritable: false });
+
     return new TransactionInstruction({
       programId: PROGRAM_IDS.PUMP_AMM,
       keys: [
@@ -1233,7 +1286,7 @@ export class PumpTrader {
         { pubkey: coinCreatorVaultAuthority, isSigner: false, isWritable: false },
         { pubkey: feeConfig, isSigner: false, isWritable: false },
         { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
-        { pubkey: poolV2, isSigner: false, isWritable: false }
+        ...remainingKeys
       ],
       data: Buffer.concat([
         DISCRIMINATORS.SELL,

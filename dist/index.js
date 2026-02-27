@@ -100,6 +100,8 @@ function parsePoolKeys(data) {
     const coinCreator = new web3_js_1.PublicKey(data.slice(offset, offset + 32));
     offset += 32;
     const isMayhemMode = data.readUInt8(offset) === 1;
+    offset += 1;
+    const isCashbackCoin = offset < data.length ? data.readUInt8(offset) === 1 : false;
     return {
         creator,
         baseMint,
@@ -108,7 +110,8 @@ function parsePoolKeys(data) {
         poolBaseTokenAccount,
         poolQuoteTokenAccount,
         coinCreator,
-        isMayhemMode
+        isMayhemMode,
+        isCashbackCoin
     };
 }
 /* ================= PumpTrader 类 ================= */
@@ -240,6 +243,10 @@ class PumpTrader {
         state.complete = data[offset] === 1;
         offset += 1;
         const creator = new web3_js_1.PublicKey(data.slice(offset, offset + 32));
+        offset += 32;
+        state.isMayhemMode = offset < data.length ? data[offset] === 1 : false;
+        offset += 1;
+        state.isCashbackCoin = offset < data.length ? data[offset] === 1 : false;
         return { bonding, state, creator };
     }
     /* ---------- 价格计算 ---------- */
@@ -559,6 +566,12 @@ class PumpTrader {
         const userAta = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, this.wallet.publicKey, false, tokenProgram.programId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
         const [creatorVault] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("creator-vault"), creator.toBuffer()], PROGRAM_IDS.PUMP);
         const [feeConfig] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("fee_config"), SEEDS.FEE_CONFIG], PROGRAM_IDS.FEE);
+        const [userVolumeAccumulator] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("user_volume_accumulator"), this.wallet.publicKey.toBuffer()], PROGRAM_IDS.PUMP);
+        const sellRemainingKeys = [];
+        if (state.isCashbackCoin) {
+            sellRemainingKeys.push({ pubkey: userVolumeAccumulator, isSigner: false, isWritable: true });
+        }
+        sellRemainingKeys.push({ pubkey: bondingCurveV2, isSigner: false, isWritable: false });
         for (let i = 0; i < tokenChunks.length; i++) {
             try {
                 const tokenIn = tokenChunks[i];
@@ -588,7 +601,7 @@ class PumpTrader {
                         { pubkey: PROGRAM_IDS.PUMP, isSigner: false, isWritable: false },
                         { pubkey: feeConfig, isSigner: false, isWritable: false },
                         { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
-                        { pubkey: bondingCurveV2, isSigner: false, isWritable: false }
+                        ...sellRemainingKeys
                     ],
                     data: Buffer.concat([
                         DISCRIMINATORS.SELL,
@@ -778,6 +791,12 @@ class PumpTrader {
         const [feeConfig] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("fee_config"), SEEDS.AMM_FEE_CONFIG], PROGRAM_IDS.FEE);
         const protocolFeeRecipient = globalConfig.protocolFeeRecipients[0];
         const protocolFeeRecipientTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(SOL_MINT, protocolFeeRecipient, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const remainingKeys = [];
+        if (poolKeys.isCashbackCoin) {
+            const userVolumeAccumulatorWsolAta = (0, spl_token_1.getAssociatedTokenAddressSync)(SOL_MINT, userVolumeAccumulator, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+            remainingKeys.push({ pubkey: userVolumeAccumulatorWsolAta, isSigner: false, isWritable: true });
+        }
+        remainingKeys.push({ pubkey: poolV2, isSigner: false, isWritable: false });
         return new web3_js_1.TransactionInstruction({
             programId: PROGRAM_IDS.PUMP_AMM,
             keys: [
@@ -804,7 +823,7 @@ class PumpTrader {
                 { pubkey: userVolumeAccumulator, isSigner: false, isWritable: true },
                 { pubkey: feeConfig, isSigner: false, isWritable: false },
                 { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
-                { pubkey: poolV2, isSigner: false, isWritable: false }
+                ...remainingKeys
             ],
             data: Buffer.concat([
                 DISCRIMINATORS.BUY,
@@ -823,6 +842,13 @@ class PumpTrader {
         const [feeConfig] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("fee_config"), SEEDS.AMM_FEE_CONFIG], PROGRAM_IDS.FEE);
         const protocolFeeRecipient = globalConfig.protocolFeeRecipients[0];
         const protocolFeeRecipientTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(SOL_MINT, protocolFeeRecipient, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const [userVolumeAccumulator] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("user_volume_accumulator"), this.wallet.publicKey.toBuffer()], PROGRAM_IDS.PUMP_AMM);
+        const userVolumeAccumulatorWsolAta = (0, spl_token_1.getAssociatedTokenAddressSync)(SOL_MINT, userVolumeAccumulator, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const remainingKeys = [];
+        if (poolKeys.isCashbackCoin) {
+            remainingKeys.push({ pubkey: userVolumeAccumulatorWsolAta, isSigner: false, isWritable: true }, { pubkey: userVolumeAccumulator, isSigner: false, isWritable: true });
+        }
+        remainingKeys.push({ pubkey: poolV2, isSigner: false, isWritable: false });
         return new web3_js_1.TransactionInstruction({
             programId: PROGRAM_IDS.PUMP_AMM,
             keys: [
@@ -847,7 +873,7 @@ class PumpTrader {
                 { pubkey: coinCreatorVaultAuthority, isSigner: false, isWritable: false },
                 { pubkey: feeConfig, isSigner: false, isWritable: false },
                 { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
-                { pubkey: poolV2, isSigner: false, isWritable: false }
+                ...remainingKeys
             ],
             data: Buffer.concat([
                 DISCRIMINATORS.SELL,
