@@ -176,7 +176,15 @@ class PumpTrader {
      */
     async getTradeMode(tokenAddr) {
         const isAmmMode = await this.isAmmCompleted(tokenAddr);
-        return isAmmMode ? "amm" : "bonding";
+        if (isAmmMode)
+            return "amm";
+        try {
+            await this.getAmmPoolInfo(new web3_js_1.PublicKey(tokenAddr));
+            return "amm";
+        }
+        catch {
+            return "bonding";
+        }
     }
     /* ---------- Global State ---------- */
     async loadGlobal() {
@@ -212,6 +220,9 @@ class PumpTrader {
     /* ---------- Bonding Curve ---------- */
     getBondingPda(mint) {
         return web3_js_1.PublicKey.findProgramAddressSync([SEEDS.BONDING, mint.toBuffer()], PROGRAM_IDS.PUMP)[0];
+    }
+    deriveBondingCurveV2(mint) {
+        return web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("bonding-curve-v2"), mint.toBuffer()], PROGRAM_IDS.PUMP)[0];
     }
     async loadBonding(mint) {
         const bonding = this.getBondingPda(mint);
@@ -456,6 +467,7 @@ class PumpTrader {
     async buy(tokenAddr, totalSolIn, tradeOpt) {
         const mint = new web3_js_1.PublicKey(tokenAddr);
         const tokenProgram = await this.detectTokenProgram(tokenAddr);
+        const bondingCurveV2 = this.deriveBondingCurveV2(mint);
         if (!this.globalState)
             await this.loadGlobal();
         const { bonding, state, creator } = await this.loadBonding(mint);
@@ -500,7 +512,8 @@ class PumpTrader {
                         { pubkey: globalVolumeAccumulator, isSigner: false, isWritable: false },
                         { pubkey: userVolumeAccumulator, isSigner: false, isWritable: true },
                         { pubkey: feeConfig, isSigner: false, isWritable: false },
-                        { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false }
+                        { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
+                        { pubkey: bondingCurveV2, isSigner: false, isWritable: false }
                     ],
                     data: Buffer.concat([DISCRIMINATORS.BUY, u64(tokenOut), u64(maxSol)])
                 }));
@@ -530,6 +543,7 @@ class PumpTrader {
     async sell(tokenAddr, totalTokenIn, tradeOpt) {
         const mint = new web3_js_1.PublicKey(tokenAddr);
         const tokenProgram = await this.detectTokenProgram(tokenAddr);
+        const bondingCurveV2 = this.deriveBondingCurveV2(mint);
         if (!this.globalState)
             await this.loadGlobal();
         const { bonding, state, creator } = await this.loadBonding(mint);
@@ -573,7 +587,8 @@ class PumpTrader {
                         { pubkey: PROGRAM_IDS.EVENT_AUTHORITY, isSigner: false, isWritable: false },
                         { pubkey: PROGRAM_IDS.PUMP, isSigner: false, isWritable: false },
                         { pubkey: feeConfig, isSigner: false, isWritable: false },
-                        { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false }
+                        { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
+                        { pubkey: bondingCurveV2, isSigner: false, isWritable: false }
                     ],
                     data: Buffer.concat([
                         DISCRIMINATORS.SELL,

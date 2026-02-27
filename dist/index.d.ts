@@ -101,6 +101,7 @@ export declare class PumpTrader {
     getTradeMode(tokenAddr: string): Promise<"bonding" | "amm">;
     loadGlobal(): Promise<GlobalState>;
     getBondingPda(mint: PublicKey): PublicKey;
+    deriveBondingCurveV2(mint: PublicKey): PublicKey;
     loadBonding(mint: PublicKey): Promise<BondingInfo>;
     calcBuy(solIn: bigint, state: BondingCurveState): bigint;
     calcSell(tokenIn: bigint, state: BondingCurveState): bigint;
