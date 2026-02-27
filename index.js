@@ -1066,15 +1066,18 @@ export class PumpTrader {
     };
   }
 
+  deriveAmmPoolV2(baseMint) {
+    return PublicKey.findProgramAddressSync(
+      [Buffer.from("pool-v2"), baseMint.toBuffer()],
+      PROGRAM_IDS.PUMP_AMM
+    )[0];
+  }
+
   /* ---------- AMM 指令构建 ---------- */
 
   createAmmBuyInstruction(poolInfo, userBaseAta, userQuoteAta, baseAmountOut, maxQuoteAmountIn, tokenProgramId) {
     const { pool, poolKeys, globalConfig } = poolInfo;
-    const bondingCurveV2Mint = poolKeys.baseMint.equals(SOL_MINT) ? poolKeys.quoteMint : poolKeys.baseMint;
-    const [bondingCurveV2] = PublicKey.findProgramAddressSync(
-      [Buffer.from("bonding-curve-v2"), bondingCurveV2Mint.toBuffer()],
-      PROGRAM_IDS.PUMP
-    );
+    const poolV2 = this.deriveAmmPoolV2(poolKeys.baseMint);
 
     const [eventAuthority] = PublicKey.findProgramAddressSync(
       [Buffer.from("__event_authority")],
@@ -1144,7 +1147,7 @@ export class PumpTrader {
         { pubkey: userVolumeAccumulator, isSigner: false, isWritable: true },
         { pubkey: feeConfig, isSigner: false, isWritable: false },
         { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
-        { pubkey: bondingCurveV2, isSigner: false, isWritable: false }
+        { pubkey: poolV2, isSigner: false, isWritable: false }
       ],
       data: Buffer.concat([
         DISCRIMINATORS.BUY,
@@ -1157,6 +1160,7 @@ export class PumpTrader {
 
   createAmmSellInstruction(poolInfo, userBaseAta, userQuoteAta, baseAmountIn, minQuoteAmountOut, tokenProgramId) {
     const { pool, poolKeys, globalConfig } = poolInfo;
+    const poolV2 = this.deriveAmmPoolV2(poolKeys.baseMint);
 
     const [eventAuthority] = PublicKey.findProgramAddressSync(
       [Buffer.from("__event_authority")],
@@ -1213,7 +1217,8 @@ export class PumpTrader {
         { pubkey: coinCreatorVaultAta, isSigner: false, isWritable: true },
         { pubkey: coinCreatorVaultAuthority, isSigner: false, isWritable: false },
         { pubkey: feeConfig, isSigner: false, isWritable: false },
-        { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false }
+        { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
+        { pubkey: poolV2, isSigner: false, isWritable: false }
       ],
       data: Buffer.concat([
         DISCRIMINATORS.SELL,
