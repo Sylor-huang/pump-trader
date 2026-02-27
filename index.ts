@@ -943,6 +943,7 @@ export class PumpTrader {
   async ammBuy(tokenAddr: string, totalSolIn: bigint, tradeOpt: TradeOptions): Promise<TradeResult> {
     const mint = new PublicKey(tokenAddr);
     const poolInfo = await this.getAmmPoolInfo(mint);
+    const reserves = await this.getAmmPoolReserves(poolInfo.poolKeys);
     const solChunks = this.splitByMax(totalSolIn, tradeOpt.maxSolPerTx);
     const tokenProgram = await this.detectTokenProgram(tokenAddr);
     const pendingTransactions: PendingTransaction[] = [];
@@ -951,16 +952,13 @@ export class PumpTrader {
     for (let i = 0; i < solChunks.length; i++) {
       try {
         const solIn = solChunks[i];
-        const reserves = await this.getAmmPoolReserves(poolInfo.poolKeys);
-        const rawSlippageBps = this.calcSlippage({
+        const baseAmountOut = this.calculateAmmBuyOutput(solIn, reserves);
+        const slippageBps = this.calcSlippage({
           tradeSize: solIn,
           reserve: reserves.quoteAmount,
           slippageOpt: tradeOpt.slippage
         });
-        const slippageBps = Math.max(0, Math.min(rawSlippageBps, 9000));
         const maxQuoteIn = (solIn * BigInt(10_000 + slippageBps)) / 10_000n;
-        const estimatedBaseOut = this.calculateAmmBuyOutput(solIn, reserves);
-        const baseAmountOut = ((estimatedBaseOut * BigInt(10_000 - slippageBps)) / 10_000n) || 1n;
         const priority = this.genPriority(tradeOpt.priority);
 
         const tx = new Transaction().add(
@@ -1266,8 +1264,7 @@ export class PumpTrader {
         DISCRIMINATORS.BUY,
         u64(baseAmountOut),
         u64(maxQuoteAmountIn),
-        // Match Pump UI buy payload tail (1 byte)
-        Buffer.from([1])
+        Buffer.from([1, 1])
       ])
     });
   }

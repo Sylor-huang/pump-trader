@@ -605,6 +605,7 @@ class PumpTrader {
     async ammBuy(tokenAddr, totalSolIn, tradeOpt) {
         const mint = new web3_js_1.PublicKey(tokenAddr);
         const poolInfo = await this.getAmmPoolInfo(mint);
+        const reserves = await this.getAmmPoolReserves(poolInfo.poolKeys);
         const solChunks = this.splitByMax(totalSolIn, tradeOpt.maxSolPerTx);
         const tokenProgram = await this.detectTokenProgram(tokenAddr);
         const pendingTransactions = [];
@@ -612,16 +613,13 @@ class PumpTrader {
         for (let i = 0; i < solChunks.length; i++) {
             try {
                 const solIn = solChunks[i];
-                const reserves = await this.getAmmPoolReserves(poolInfo.poolKeys);
-                const rawSlippageBps = this.calcSlippage({
+                const baseAmountOut = this.calculateAmmBuyOutput(solIn, reserves);
+                const slippageBps = this.calcSlippage({
                     tradeSize: solIn,
                     reserve: reserves.quoteAmount,
                     slippageOpt: tradeOpt.slippage
                 });
-                const slippageBps = Math.max(0, Math.min(rawSlippageBps, 9000));
                 const maxQuoteIn = (solIn * BigInt(10_000 + slippageBps)) / 10000n;
-                const estimatedBaseOut = this.calculateAmmBuyOutput(solIn, reserves);
-                const baseAmountOut = ((estimatedBaseOut * BigInt(10_000 - slippageBps)) / 10000n) || 1n;
                 const priority = this.genPriority(tradeOpt.priority);
                 const tx = new web3_js_1.Transaction().add(web3_js_1.ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }), web3_js_1.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority }));
                 const userBaseAta = await this.ensureAta(tx, poolInfo.poolKeys.baseMint, tokenProgram.programId);
@@ -797,8 +795,7 @@ class PumpTrader {
                 DISCRIMINATORS.BUY,
                 u64(baseAmountOut),
                 u64(maxQuoteAmountIn),
-                // Match Pump UI buy payload tail (1 byte)
-                Buffer.from([1])
+                Buffer.from([1, 1])
             ])
         });
     }
