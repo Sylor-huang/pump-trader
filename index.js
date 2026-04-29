@@ -56,6 +56,16 @@ const DISCRIMINATORS = {
 
 const AMM_FEE_BPS = 100n; // 1%
 const BPS_DENOMINATOR = 10000n;
+const PUMP_NEW_FEE_RECIPIENTS = [
+  "5YxQFdt3Tr9zJLvkFccqXVUwhdTWJQc1fFg2YPbxvxeD",
+  "9M4giFFMxmFGXtc3feFzRai56WbBqehoSeRE5GK7gf7",
+  "GXPFM2caqTtQYC2cJ5yJRi9VDkpsYZXzYdwYpGnLmtDL",
+  "3BpXnfJaUTiwXnJNe7Ej1rcbzqTTQUvLShZaWazebsVR",
+  "5cjcW9wExnJJiqgLjq7DEG75Pm6JBgE1hNv4B2vHXUW6",
+  "EHAAiTxcdDwQ3U4bU6YcMsQGaekdzLS3B5SmYo46kJtL",
+  "5eHhjP8JaYkz83CWwvGU2uMUXefd3AazWGx4gpcuEEYD",
+  "A7hAgCzFw14fejgCp387JUJRMNyz4j89JKnhtKU8piqW"
+].map((value) => new PublicKey(value));
 
 /* ================= 工具函数 ================= */
 
@@ -292,6 +302,66 @@ export class PumpTrader {
       [Buffer.from("bonding-curve-v2"), mint.toBuffer()],
       PROGRAM_IDS.PUMP
     )[0];
+  }
+
+  pickFeeRecipient(index = 0) {
+    return PUMP_NEW_FEE_RECIPIENTS[index % PUMP_NEW_FEE_RECIPIENTS.length];
+  }
+
+  buildBondingBuyKeys(args) {
+    const tokenProgramId = args.tokenProgramId ?? TOKEN_PROGRAM_ID;
+
+    return [
+      { pubkey: args.global, isSigner: false, isWritable: false },
+      { pubkey: args.globalFeeRecipient, isSigner: false, isWritable: true },
+      { pubkey: args.mint, isSigner: false, isWritable: false },
+      { pubkey: args.bonding, isSigner: false, isWritable: true },
+      { pubkey: args.associatedBondingCurve, isSigner: false, isWritable: true },
+      { pubkey: args.userAta, isSigner: false, isWritable: true },
+      { pubkey: args.wallet, isSigner: true, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: tokenProgramId, isSigner: false, isWritable: false },
+      { pubkey: args.creatorVault, isSigner: false, isWritable: true },
+      { pubkey: args.eventAuthority, isSigner: false, isWritable: false },
+      { pubkey: args.pumpProgram, isSigner: false, isWritable: false },
+      { pubkey: args.globalVolumeAccumulator, isSigner: false, isWritable: false },
+      { pubkey: args.userVolumeAccumulator, isSigner: false, isWritable: true },
+      { pubkey: args.feeConfig, isSigner: false, isWritable: false },
+      { pubkey: args.feeProgram, isSigner: false, isWritable: false },
+      { pubkey: args.bondingCurveV2, isSigner: false, isWritable: false },
+      { pubkey: args.feeRecipient, isSigner: false, isWritable: true }
+    ];
+  }
+
+  buildBondingSellKeys(args) {
+    const tokenProgramId = args.tokenProgramId ?? TOKEN_PROGRAM_ID;
+    const keys = [
+      { pubkey: args.global, isSigner: false, isWritable: false },
+      { pubkey: args.globalFeeRecipient, isSigner: false, isWritable: true },
+      { pubkey: args.mint, isSigner: false, isWritable: false },
+      { pubkey: args.bonding, isSigner: false, isWritable: true },
+      { pubkey: args.associatedBondingCurve, isSigner: false, isWritable: true },
+      { pubkey: args.userAta, isSigner: false, isWritable: true },
+      { pubkey: args.wallet, isSigner: true, isWritable: true },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: args.creatorVault, isSigner: false, isWritable: true },
+      { pubkey: tokenProgramId, isSigner: false, isWritable: false },
+      { pubkey: args.eventAuthority, isSigner: false, isWritable: false },
+      { pubkey: args.pumpProgram, isSigner: false, isWritable: false },
+      { pubkey: args.feeConfig, isSigner: false, isWritable: false },
+      { pubkey: args.feeProgram, isSigner: false, isWritable: false }
+    ];
+
+    if (args.isCashbackCoin) {
+      keys.push({ pubkey: args.userVolumeAccumulator, isSigner: false, isWritable: true });
+    }
+
+    keys.push(
+      { pubkey: args.bondingCurveV2, isSigner: false, isWritable: false },
+      { pubkey: args.feeRecipient, isSigner: false, isWritable: true }
+    );
+
+    return keys;
   }
 
   async loadBonding(mint) {
@@ -667,17 +737,7 @@ export class PumpTrader {
       [Buffer.from("fee_config"), SEEDS.FEE_CONFIG],
       PROGRAM_IDS.FEE
     );
-
-    const [userVolumeAccumulator] = PublicKey.findProgramAddressSync(
-      [Buffer.from("user_volume_accumulator"), this.wallet.publicKey.toBuffer()],
-      PROGRAM_IDS.PUMP
-    );
-
-    const sellRemainingKeys = [];
-    if (state.isCashbackCoin) {
-      sellRemainingKeys.push({ pubkey: userVolumeAccumulator, isSigner: false, isWritable: true });
-    }
-    sellRemainingKeys.push({ pubkey: bondingCurveV2, isSigner: false, isWritable: false });
+    const feeRecipient = this.pickFeeRecipient();
 
     for (let i = 0; i < solChunks.length; i++) {
       try {
@@ -701,25 +761,25 @@ export class PumpTrader {
         tx.add(
           new TransactionInstruction({
             programId: PROGRAM_IDS.PUMP,
-            keys: [
-              { pubkey: this.global, isSigner: false, isWritable: false },
-              { pubkey: this.globalState.feeRecipient, isSigner: false, isWritable: true },
-              { pubkey: mint, isSigner: false, isWritable: false },
-              { pubkey: bonding, isSigner: false, isWritable: true },
-              { pubkey: associatedBondingCurve, isSigner: false, isWritable: true },
-              { pubkey: userAta, isSigner: false, isWritable: true },
-              { pubkey: this.wallet.publicKey, isSigner: true, isWritable: true },
-              { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-              { pubkey: tokenProgram.programId, isSigner: false, isWritable: false },
-              { pubkey: creatorVault, isSigner: false, isWritable: true },
-              { pubkey: PROGRAM_IDS.EVENT_AUTHORITY, isSigner: false, isWritable: false },
-              { pubkey: PROGRAM_IDS.PUMP, isSigner: false, isWritable: false },
-              { pubkey: globalVolumeAccumulator, isSigner: false, isWritable: false },
-              { pubkey: userVolumeAccumulator, isSigner: false, isWritable: true },
-              { pubkey: feeConfig, isSigner: false, isWritable: false },
-              { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
-              { pubkey: bondingCurveV2, isSigner: false, isWritable: false }
-            ],
+            keys: this.buildBondingBuyKeys({
+              global: this.global,
+              globalFeeRecipient: this.globalState.feeRecipient,
+              mint,
+              bonding,
+              associatedBondingCurve,
+              userAta,
+              wallet: this.wallet.publicKey,
+              creatorVault,
+              eventAuthority: PROGRAM_IDS.EVENT_AUTHORITY,
+              pumpProgram: PROGRAM_IDS.PUMP,
+              globalVolumeAccumulator,
+              userVolumeAccumulator,
+              feeConfig,
+              feeProgram: PROGRAM_IDS.FEE,
+              bondingCurveV2,
+              feeRecipient,
+              tokenProgramId: tokenProgram.programId
+            }),
             data: Buffer.concat([DISCRIMINATORS.BUY, u64(tokenOut), u64(maxSol)])
           })
         );
@@ -797,6 +857,11 @@ export class PumpTrader {
       [Buffer.from("fee_config"), SEEDS.FEE_CONFIG],
       PROGRAM_IDS.FEE
     );
+    const [userVolumeAccumulator] = PublicKey.findProgramAddressSync(
+      [Buffer.from("user_volume_accumulator"), this.wallet.publicKey.toBuffer()],
+      PROGRAM_IDS.PUMP
+    );
+    const feeRecipient = this.pickFeeRecipient();
 
     for (let i = 0; i < tokenChunks.length; i++) {
       try {
@@ -818,23 +883,25 @@ export class PumpTrader {
         tx.add(
           new TransactionInstruction({
             programId: PROGRAM_IDS.PUMP,
-            keys: [
-              { pubkey: this.global, isSigner: false, isWritable: false },
-              { pubkey: this.globalState.feeRecipient, isSigner: false, isWritable: true },
-              { pubkey: mint, isSigner: false, isWritable: false },
-              { pubkey: bonding, isSigner: false, isWritable: true },
-              { pubkey: associatedBondingCurve, isSigner: false, isWritable: true },
-              { pubkey: userAta, isSigner: false, isWritable: true },
-              { pubkey: this.wallet.publicKey, isSigner: true, isWritable: true },
-              { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-              { pubkey: creatorVault, isSigner: false, isWritable: true },
-              { pubkey: tokenProgram.programId, isSigner: false, isWritable: false },
-              { pubkey: PROGRAM_IDS.EVENT_AUTHORITY, isSigner: false, isWritable: false },
-              { pubkey: PROGRAM_IDS.PUMP, isSigner: false, isWritable: false },
-              { pubkey: feeConfig, isSigner: false, isWritable: false },
-              { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
-              ...sellRemainingKeys
-            ],
+            keys: this.buildBondingSellKeys({
+              global: this.global,
+              globalFeeRecipient: this.globalState.feeRecipient,
+              mint,
+              bonding,
+              associatedBondingCurve,
+              userAta,
+              wallet: this.wallet.publicKey,
+              creatorVault,
+              eventAuthority: PROGRAM_IDS.EVENT_AUTHORITY,
+              pumpProgram: PROGRAM_IDS.PUMP,
+              feeConfig,
+              feeProgram: PROGRAM_IDS.FEE,
+              bondingCurveV2,
+              feeRecipient,
+              isCashbackCoin: !!state.isCashbackCoin,
+              userVolumeAccumulator,
+              tokenProgramId: tokenProgram.programId
+            }),
             data: Buffer.concat([
               DISCRIMINATORS.SELL,
               u64(tokenIn),
@@ -1153,6 +1220,14 @@ export class PumpTrader {
       TOKEN_PROGRAM_ID,
       ASSOCIATED_TOKEN_PROGRAM_ID
     );
+    const newFeeRecipient = this.pickFeeRecipient();
+    const newFeeRecipientTokenAccount = getAssociatedTokenAddressSync(
+      poolKeys.quoteMint,
+      newFeeRecipient,
+      true,
+      TOKEN_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    );
 
     const remainingKeys = [];
     if (poolKeys.isCashbackCoin) {
@@ -1166,6 +1241,10 @@ export class PumpTrader {
       remainingKeys.push({ pubkey: userVolumeAccumulatorWsolAta, isSigner: false, isWritable: true });
     }
     remainingKeys.push({ pubkey: poolV2, isSigner: false, isWritable: false });
+    remainingKeys.push(
+      { pubkey: newFeeRecipient, isSigner: false, isWritable: false },
+      { pubkey: newFeeRecipientTokenAccount, isSigner: false, isWritable: true }
+    );
 
     return new TransactionInstruction({
       programId: PROGRAM_IDS.PUMP_AMM,
@@ -1239,6 +1318,14 @@ export class PumpTrader {
       TOKEN_PROGRAM_ID,
       ASSOCIATED_TOKEN_PROGRAM_ID
     );
+    const newFeeRecipient = this.pickFeeRecipient();
+    const newFeeRecipientTokenAccount = getAssociatedTokenAddressSync(
+      poolKeys.quoteMint,
+      newFeeRecipient,
+      true,
+      TOKEN_PROGRAM_ID,
+      ASSOCIATED_TOKEN_PROGRAM_ID
+    );
 
     const [userVolumeAccumulator] = PublicKey.findProgramAddressSync(
       [Buffer.from("user_volume_accumulator"), this.wallet.publicKey.toBuffer()],
@@ -1261,6 +1348,10 @@ export class PumpTrader {
       );
     }
     remainingKeys.push({ pubkey: poolV2, isSigner: false, isWritable: false });
+    remainingKeys.push(
+      { pubkey: newFeeRecipient, isSigner: false, isWritable: false },
+      { pubkey: newFeeRecipientTokenAccount, isSigner: false, isWritable: true }
+    );
 
     return new TransactionInstruction({
       programId: PROGRAM_IDS.PUMP_AMM,
