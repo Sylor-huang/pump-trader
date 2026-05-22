@@ -154,14 +154,8 @@ function parsePoolKeys(data) {
 class PumpTrader {
     constructor(rpc, wallet) {
         this.connection = new web3_js_1.Connection(rpc, "confirmed");
-        if (wallet instanceof web3_js_1.Keypair) {
-            this._wallet = wallet;
-            this.publicKey = wallet.publicKey;
-        }
-        else {
-            this._wallet = wallet;
-            this.publicKey = wallet.publicKey;
-        }
+        this._wallet = wallet;
+        this.publicKey = wallet.publicKey;
         this.global = web3_js_1.PublicKey.findProgramAddressSync([SEEDS.GLOBAL], PROGRAM_IDS.PUMP)[0];
         this.globalState = null;
         this.tokenProgramCache = new Map();
@@ -169,9 +163,12 @@ class PumpTrader {
     async signTx(tx) {
         if (this._wallet instanceof web3_js_1.Keypair) {
             tx.sign(this._wallet);
-            return tx;
         }
-        return this._wallet.signTransaction(tx);
+        else {
+            const signed = await this._wallet.signTransaction(tx);
+            // Copy signatures back to the original tx (adapter returns a new tx)
+            tx.signatures = signed.signatures;
+        }
     }
     /* ---------- Token Program 检测 ---------- */
     /**

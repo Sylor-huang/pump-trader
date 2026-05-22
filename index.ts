@@ -335,12 +335,14 @@ export class PumpTrader {
     this.tokenProgramCache = new Map();
   }
 
-  private async signTx(tx: Transaction): Promise<Transaction> {
+  private async signTx(tx: Transaction): Promise<void> {
     if (this._wallet instanceof Keypair) {
       tx.sign(this._wallet);
-      return tx;
+    } else {
+      const signed = await this._wallet.signTransaction(tx);
+      // Copy signatures back to the original tx (adapter returns a new tx)
+      tx.signatures = signed.signatures;
     }
-    return this._wallet.signTransaction(tx);
   }
 
   /* ---------- Token Program 检测 ---------- */

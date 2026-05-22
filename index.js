@@ -193,9 +193,11 @@ export class PumpTrader {
   async signTx(tx) {
     if (this._wallet instanceof Keypair) {
       tx.sign(this._wallet);
-      return tx;
+    } else {
+      const signed = await this._wallet.signTransaction(tx);
+      // Copy signatures back to the original tx (adapter returns a new tx)
+      tx.signatures = signed.signatures;
     }
-    return this._wallet.signTransaction(tx);
   }
 
   /* ---------- Token Program 检测 ---------- */
