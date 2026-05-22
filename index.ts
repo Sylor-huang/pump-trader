@@ -22,9 +22,13 @@ import {
 } from "@solana/spl-token";
 
 import BN from "bn.js";
-import bs58 from "bs58";
-
 /* ================= 类型定义 ================= */
+
+/** Wallet 接口：兼容 Keypair（自动签名）和前端钱包适配器（弹出确认） */
+export type Wallet = Keypair | {
+  publicKey: PublicKey;
+  signTransaction<T extends Transaction>(tx: T): Promise<T>;
+};
 
 interface TradeOptions {
   maxSolPerTx: bigint;
@@ -313,20 +317,30 @@ function parsePoolKeys(data: Buffer) {
 
 export class PumpTrader {
   private connection: Connection;
-  private wallet: Keypair;
+  private _wallet: Keypair | { publicKey: PublicKey; signTransaction<T extends Transaction>(tx: T): Promise<T> };
+  public publicKey: PublicKey;
   private global: PublicKey;
   private globalState: GlobalState | null;
   private tokenProgramCache: Map<string, TokenProgramType>;
 
-  constructor(rpc: string, privateKey: string) {
+  constructor(rpc: string, wallet: Wallet) {
     this.connection = new Connection(rpc, "confirmed");
-    this.wallet = Keypair.fromSecretKey(bs58.decode(privateKey));
+    this._wallet = wallet;
+    this.publicKey = wallet.publicKey;
     this.global = PublicKey.findProgramAddressSync(
       [SEEDS.GLOBAL],
       PROGRAM_IDS.PUMP,
     )[0];
     this.globalState = null;
     this.tokenProgramCache = new Map();
+  }
+
+  private async signTx(tx: Transaction): Promise<Transaction> {
+    if (this._wallet instanceof Keypair) {
+      tx.sign(this._wallet);
+      return tx;
+    }
+    return this._wallet.signTransaction(tx);
   }
 
   /* ---------- Token Program 检测 ---------- */
@@ -741,17 +755,17 @@ export class PumpTrader {
   async tokenBalance(tokenAddr?: string): Promise<
     | number
     | Array<{
-        mint: string;
-        amount: number;
-        decimals: number;
-        uiAmount: number;
-      }>
+      mint: string;
+      amount: number;
+      decimals: number;
+      uiAmount: number;
+    }>
   > {
     if (tokenAddr) {
       // 查询单个代币
       const mint = new PublicKey(tokenAddr);
       const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(
-        this.wallet.publicKey,
+        this.publicKey,
         { mint },
       );
       return (
@@ -772,7 +786,7 @@ export class PumpTrader {
     Array<{ mint: string; amount: number; decimals: number; uiAmount: number }>
   > {
     const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(
-      this.wallet.publicKey,
+      this.publicKey,
       { programId: TOKEN_PROGRAM_ID },
     );
 
@@ -792,16 +806,16 @@ export class PumpTrader {
         };
       })
       .filter((item) => item !== null) as Array<{
-      mint: string;
-      amount: bigint;
-      decimals: number;
-      uiAmount: number;
-    }>;
+        mint: string;
+        amount: bigint;
+        decimals: number;
+        uiAmount: number;
+      }>;
 
     // 同时查询 TOKEN_2022_PROGRAM_ID
     const token2022Accounts =
       await this.connection.getParsedTokenAccountsByOwner(
-        this.wallet.publicKey,
+        this.publicKey,
         { programId: TOKEN_2022_PROGRAM_ID },
       );
 
@@ -821,11 +835,11 @@ export class PumpTrader {
         };
       })
       .filter((item) => item !== null) as Array<{
-      mint: string;
-      amount: bigint;
-      decimals: number;
-      uiAmount: number;
-    }>;
+        mint: string;
+        amount: bigint;
+        decimals: number;
+        uiAmount: number;
+      }>;
 
     // 合并并去重
     const allBalances = [...balances, ...token2022Balances];
@@ -847,7 +861,7 @@ export class PumpTrader {
   }
 
   async solBalance(): Promise<number> {
-    const balance = await this.connection.getBalance(this.wallet.publicKey);
+    const balance = await this.connection.getBalance(this.publicKey);
     return balance / 1e9;
   }
 
@@ -861,7 +875,7 @@ export class PumpTrader {
     const program = tokenProgram || TOKEN_2022_PROGRAM_ID;
     const ata = getAssociatedTokenAddressSync(
       mint,
-      this.wallet.publicKey,
+      this.publicKey,
       false,
       program,
       ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -871,9 +885,9 @@ export class PumpTrader {
     if (!acc) {
       tx.add(
         createAssociatedTokenAccountInstruction(
-          this.wallet.publicKey,
+          this.publicKey,
           ata,
-          this.wallet.publicKey,
+          this.publicKey,
           mint,
           program,
           ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -1068,7 +1082,7 @@ export class PumpTrader {
     const [userVolumeAccumulator] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("user_volume_accumulator"),
-        this.wallet.publicKey.toBuffer(),
+        this.publicKey.toBuffer(),
       ],
       PROGRAM_IDS.PUMP,
     );
@@ -1108,7 +1122,7 @@ export class PumpTrader {
               bonding,
               associatedBondingCurve,
               userAta,
-              wallet: this.wallet.publicKey,
+              wallet: this.publicKey,
               creatorVault,
               eventAuthority: PROGRAM_IDS.EVENT_AUTHORITY,
               pumpProgram: PROGRAM_IDS.PUMP,
@@ -1131,8 +1145,8 @@ export class PumpTrader {
         const { blockhash, lastValidBlockHeight } =
           await this.connection.getLatestBlockhash("finalized");
         tx.recentBlockhash = blockhash;
-        tx.feePayer = this.wallet.publicKey;
-        tx.sign(this.wallet);
+        tx.feePayer = this.publicKey;
+        await this.signTx(tx);
 
         const signature = await this.connection.sendRawTransaction(
           tx.serialize(),
@@ -1177,11 +1191,11 @@ export class PumpTrader {
       totalSolOut <= tradeOpt.maxSolPerTx
         ? [totalTokenIn]
         : this.splitIntoN(
-            totalTokenIn,
-            Number(
-              (totalSolOut + tradeOpt.maxSolPerTx - 1n) / tradeOpt.maxSolPerTx,
-            ),
-          );
+          totalTokenIn,
+          Number(
+            (totalSolOut + tradeOpt.maxSolPerTx - 1n) / tradeOpt.maxSolPerTx,
+          ),
+        );
 
     const pendingTransactions: PendingTransaction[] = [];
     const failedTransactions: FailedTransaction[] = [];
@@ -1196,7 +1210,7 @@ export class PumpTrader {
 
     const userAta = getAssociatedTokenAddressSync(
       mint,
-      this.wallet.publicKey,
+      this.publicKey,
       false,
       tokenProgram.programId,
       ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -1215,7 +1229,7 @@ export class PumpTrader {
     const [userVolumeAccumulator] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("user_volume_accumulator"),
-        this.wallet.publicKey.toBuffer(),
+        this.publicKey.toBuffer(),
       ],
       PROGRAM_IDS.PUMP,
     );
@@ -1248,7 +1262,7 @@ export class PumpTrader {
               bonding,
               associatedBondingCurve,
               userAta,
-              wallet: this.wallet.publicKey,
+              wallet: this.publicKey,
               creatorVault,
               eventAuthority: PROGRAM_IDS.EVENT_AUTHORITY,
               pumpProgram: PROGRAM_IDS.PUMP,
@@ -1271,8 +1285,8 @@ export class PumpTrader {
         const { blockhash, lastValidBlockHeight } =
           await this.connection.getLatestBlockhash("finalized");
         tx.recentBlockhash = blockhash;
-        tx.feePayer = this.wallet.publicKey;
-        tx.sign(this.wallet);
+        tx.feePayer = this.publicKey;
+        await this.signTx(tx);
 
         const signature = await this.connection.sendRawTransaction(
           tx.serialize(),
@@ -1337,11 +1351,11 @@ export class PumpTrader {
         );
         const userQuoteAta = isSolQuote
           ? await this.ensureWSOLAta(
-              tx,
-              this.wallet.publicKey,
-              "buy",
-              maxQuoteIn,
-            )
+            tx,
+            this.publicKey,
+            "buy",
+            maxQuoteIn,
+          )
           : await this.ensureAta(tx, quoteMint, quoteTokenProgramId);
 
         const buyIx = this.createAmmBuyInstruction(
@@ -1358,8 +1372,8 @@ export class PumpTrader {
           tx.add(
             createCloseAccountInstruction(
               userQuoteAta,
-              this.wallet.publicKey,
-              this.wallet.publicKey,
+              this.publicKey,
+              this.publicKey,
             ),
           );
         }
@@ -1367,8 +1381,8 @@ export class PumpTrader {
         const { blockhash, lastValidBlockHeight } =
           await this.connection.getLatestBlockhash("finalized");
         tx.recentBlockhash = blockhash;
-        tx.feePayer = this.wallet.publicKey;
-        tx.sign(this.wallet);
+        tx.feePayer = this.publicKey;
+        await this.signTx(tx);
 
         const signature = await this.connection.sendRawTransaction(
           tx.serialize(),
@@ -1413,11 +1427,11 @@ export class PumpTrader {
       totalSolOut <= tradeOpt.maxSolPerTx
         ? [totalTokenIn]
         : this.splitIntoN(
-            totalTokenIn,
-            Number(
-              (totalSolOut + tradeOpt.maxSolPerTx - 1n) / tradeOpt.maxSolPerTx,
-            ),
-          );
+          totalTokenIn,
+          Number(
+            (totalSolOut + tradeOpt.maxSolPerTx - 1n) / tradeOpt.maxSolPerTx,
+          ),
+        );
 
     const pendingTransactions: PendingTransaction[] = [];
     const failedTransactions: FailedTransaction[] = [];
@@ -1445,7 +1459,7 @@ export class PumpTrader {
           tokenProgram.programId,
         );
         const userQuoteAta = isSolQuote
-          ? await this.ensureWSOLAta(tx, this.wallet.publicKey, "sell")
+          ? await this.ensureWSOLAta(tx, this.publicKey, "sell")
           : await this.ensureAta(tx, quoteMint, quoteTokenProgramId);
 
         const sellIx = this.createAmmSellInstruction(
@@ -1462,8 +1476,8 @@ export class PumpTrader {
           tx.add(
             createCloseAccountInstruction(
               userQuoteAta,
-              this.wallet.publicKey,
-              this.wallet.publicKey,
+              this.publicKey,
+              this.publicKey,
             ),
           );
         }
@@ -1471,8 +1485,8 @@ export class PumpTrader {
         const { blockhash, lastValidBlockHeight } =
           await this.connection.getLatestBlockhash("finalized");
         tx.recentBlockhash = blockhash;
-        tx.feePayer = this.wallet.publicKey;
-        tx.sign(this.wallet);
+        tx.feePayer = this.publicKey;
+        await this.signTx(tx);
 
         const signature = await this.connection.sendRawTransaction(
           tx.serialize(),
@@ -1623,7 +1637,7 @@ export class PumpTrader {
     const [userVolumeAccumulator] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("user_volume_accumulator"),
-        this.wallet.publicKey.toBuffer(),
+        this.publicKey.toBuffer(),
       ],
       PROGRAM_IDS.PUMP_AMM,
     );
@@ -1679,7 +1693,7 @@ export class PumpTrader {
       programId: PROGRAM_IDS.PUMP_AMM,
       keys: [
         { pubkey: pool, isSigner: false, isWritable: true },
-        { pubkey: this.wallet.publicKey, isSigner: true, isWritable: true },
+        { pubkey: this.publicKey, isSigner: true, isWritable: true },
         { pubkey: globalConfig.address, isSigner: false, isWritable: false },
         { pubkey: poolKeys.baseMint, isSigner: false, isWritable: false },
         { pubkey: poolKeys.quoteMint, isSigner: false, isWritable: false },
@@ -1786,7 +1800,7 @@ export class PumpTrader {
     const [userVolumeAccumulator] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("user_volume_accumulator"),
-        this.wallet.publicKey.toBuffer(),
+        this.publicKey.toBuffer(),
       ],
       PROGRAM_IDS.PUMP_AMM,
     );
@@ -1824,7 +1838,7 @@ export class PumpTrader {
       programId: PROGRAM_IDS.PUMP_AMM,
       keys: [
         { pubkey: pool, isSigner: false, isWritable: true },
-        { pubkey: this.wallet.publicKey, isSigner: true, isWritable: true },
+        { pubkey: this.publicKey, isSigner: true, isWritable: true },
         { pubkey: globalConfig.address, isSigner: false, isWritable: false },
         { pubkey: poolKeys.baseMint, isSigner: false, isWritable: false },
         { pubkey: poolKeys.quoteMint, isSigner: false, isWritable: false },
@@ -2126,7 +2140,7 @@ export class PumpTrader {
     const [userVolumeAccumulator] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("user_volume_accumulator"),
-        this.wallet.publicKey.toBuffer(),
+        this.publicKey.toBuffer(),
       ],
       PROGRAM_IDS.PUMP,
     );
@@ -2163,7 +2177,7 @@ export class PumpTrader {
 
     const associatedQuoteUser = getAssociatedTokenAddressSync(
       quoteMint,
-      this.wallet.publicKey,
+      this.publicKey,
       false,
       quoteTokenProgramId,
       ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -2190,7 +2204,7 @@ export class PumpTrader {
         if (quoteMint.equals(SOL_MINT)) {
           await this.ensureWSOLAta(
             tx,
-            this.wallet.publicKey,
+            this.publicKey,
             "buy",
             maxQuoteCost,
           );
@@ -2198,7 +2212,7 @@ export class PumpTrader {
           // For non-SOL quote (e.g. USDC), ensure user has the quote token ATA
           const userQuoteAta = getAssociatedTokenAddressSync(
             quoteMint,
-            this.wallet.publicKey,
+            this.publicKey,
             false,
             quoteTokenProgramId,
             ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -2207,9 +2221,9 @@ export class PumpTrader {
           if (!acc) {
             tx.add(
               createAssociatedTokenAccountInstruction(
-                this.wallet.publicKey,
+                this.publicKey,
                 userQuoteAta,
-                this.wallet.publicKey,
+                this.publicKey,
                 quoteMint,
                 quoteTokenProgramId,
                 ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -2240,7 +2254,7 @@ export class PumpTrader {
               bondingCurve: bonding,
               associatedBaseBondingCurve,
               associatedQuoteBondingCurve,
-              user: this.wallet.publicKey,
+              user: this.publicKey,
               associatedBaseUser: userBaseAta,
               associatedQuoteUser,
               creatorVault,
@@ -2266,7 +2280,7 @@ export class PumpTrader {
         if (quoteMint.equals(SOL_MINT)) {
           const wsolAta = getAssociatedTokenAddressSync(
             SOL_MINT,
-            this.wallet.publicKey,
+            this.publicKey,
             false,
             TOKEN_PROGRAM_ID,
             ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -2274,8 +2288,8 @@ export class PumpTrader {
           tx.add(
             createCloseAccountInstruction(
               wsolAta,
-              this.wallet.publicKey,
-              this.wallet.publicKey,
+              this.publicKey,
+              this.publicKey,
             ),
           );
         }
@@ -2283,8 +2297,8 @@ export class PumpTrader {
         const { blockhash, lastValidBlockHeight } =
           await this.connection.getLatestBlockhash("finalized");
         tx.recentBlockhash = blockhash;
-        tx.feePayer = this.wallet.publicKey;
-        tx.sign(this.wallet);
+        tx.feePayer = this.publicKey;
+        await this.signTx(tx);
 
         const signature = await this.connection.sendRawTransaction(
           tx.serialize(),
@@ -2328,12 +2342,12 @@ export class PumpTrader {
       totalQuoteOut <= tradeOpt.maxSolPerTx
         ? [totalTokenIn]
         : this.splitIntoN(
-            totalTokenIn,
-            Number(
-              (totalQuoteOut + tradeOpt.maxSolPerTx - 1n) /
-                tradeOpt.maxSolPerTx,
-            ),
-          );
+          totalTokenIn,
+          Number(
+            (totalQuoteOut + tradeOpt.maxSolPerTx - 1n) /
+            tradeOpt.maxSolPerTx,
+          ),
+        );
 
     const pendingTransactions: PendingTransaction[] = [];
     const failedTransactions: FailedTransaction[] = [];
@@ -2369,7 +2383,7 @@ export class PumpTrader {
     const [userVolumeAccumulator] = PublicKey.findProgramAddressSync(
       [
         Buffer.from("user_volume_accumulator"),
-        this.wallet.publicKey.toBuffer(),
+        this.publicKey.toBuffer(),
       ],
       PROGRAM_IDS.PUMP,
     );
@@ -2406,7 +2420,7 @@ export class PumpTrader {
 
     const associatedQuoteUser = getAssociatedTokenAddressSync(
       quoteMint,
-      this.wallet.publicKey,
+      this.publicKey,
       false,
       quoteTokenProgramId,
       ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -2414,7 +2428,7 @@ export class PumpTrader {
 
     const userBaseAta = getAssociatedTokenAddressSync(
       baseMint,
-      this.wallet.publicKey,
+      this.publicKey,
       false,
       baseTokenProgram.programId,
       ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -2441,7 +2455,7 @@ export class PumpTrader {
         if (!quoteMint.equals(SOL_MINT)) {
           const userQuoteAta = getAssociatedTokenAddressSync(
             quoteMint,
-            this.wallet.publicKey,
+            this.publicKey,
             false,
             quoteTokenProgramId,
             ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -2450,9 +2464,9 @@ export class PumpTrader {
           if (!acc) {
             tx.add(
               createAssociatedTokenAccountInstruction(
-                this.wallet.publicKey,
+                this.publicKey,
                 userQuoteAta,
-                this.wallet.publicKey,
+                this.publicKey,
                 quoteMint,
                 quoteTokenProgramId,
                 ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -2477,7 +2491,7 @@ export class PumpTrader {
               bondingCurve: bonding,
               associatedBaseBondingCurve,
               associatedQuoteBondingCurve,
-              user: this.wallet.publicKey,
+              user: this.publicKey,
               associatedBaseUser: userBaseAta,
               associatedQuoteUser,
               creatorVault,
@@ -2501,8 +2515,8 @@ export class PumpTrader {
         const { blockhash, lastValidBlockHeight } =
           await this.connection.getLatestBlockhash("finalized");
         tx.recentBlockhash = blockhash;
-        tx.feePayer = this.wallet.publicKey;
-        tx.sign(this.wallet);
+        tx.feePayer = this.publicKey;
+        await this.signTx(tx);
 
         const signature = await this.connection.sendRawTransaction(
           tx.serialize(),
@@ -2591,8 +2605,8 @@ export class PumpTrader {
     const { blockhash, lastValidBlockHeight } =
       await this.connection.getLatestBlockhash("finalized");
     tx.recentBlockhash = blockhash;
-    tx.feePayer = this.wallet.publicKey;
-    tx.sign(this.wallet);
+    tx.feePayer = this.publicKey;
+    await this.signTx(tx);
 
     const signature = await this.connection.sendRawTransaction(tx.serialize());
     await this.confirmTransactionWithPolling(signature, lastValidBlockHeight);
@@ -2744,9 +2758,15 @@ export class PumpTrader {
     }
   }
 
-  // 公开wallet方法
-  getWallet() {
-    return this.wallet;
+  /**
+   * 获取原始 wallet 对象（Keypair 或前端 WalletAdapter）
+   */
+  getWallet(): Wallet {
+    return this._wallet;
+  }
+
+  getPublicKey(): PublicKey {
+    return this.publicKey;
   }
 
   getConnection() {

@@ -7,36 +7,60 @@ exports.PumpTrader = void 0;
 const web3_js_1 = require("@solana/web3.js");
 const spl_token_1 = require("@solana/spl-token");
 const bn_js_1 = __importDefault(require("bn.js"));
-const bs58_1 = __importDefault(require("bs58"));
 /* ================= 常量定义 ================= */
 const PROGRAM_IDS = {
     PUMP: new web3_js_1.PublicKey("6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P"),
     PUMP_AMM: new web3_js_1.PublicKey("pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA"),
     METADATA: new web3_js_1.PublicKey("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"),
     FEE: new web3_js_1.PublicKey("pfeeUxB6jkeY1Hxd7CsFCAjcbHA9rWtchMGdZ6VojVZ"),
-    EVENT_AUTHORITY: new web3_js_1.PublicKey("Ce6TQqeHC9p8KetsN6JsjHK7UTZk7nasjjnr7XxXp9F1")
+    EVENT_AUTHORITY: new web3_js_1.PublicKey("Ce6TQqeHC9p8KetsN6JsjHK7UTZk7nasjjnr7XxXp9F1"),
 };
 const SOL_MINT = new web3_js_1.PublicKey("So11111111111111111111111111111111111111112");
 const SEEDS = {
     FEE_CONFIG: new Uint8Array([
-        1, 86, 224, 246, 147, 102, 90, 207, 68, 219, 21, 104, 191, 23, 91, 170,
-        81, 137, 203, 151, 245, 210, 255, 59, 101, 93, 43, 182, 253, 109, 24, 176
+        1, 86, 224, 246, 147, 102, 90, 207, 68, 219, 21, 104, 191, 23, 91, 170, 81,
+        137, 203, 151, 245, 210, 255, 59, 101, 93, 43, 182, 253, 109, 24, 176,
     ]),
     AMM_FEE_CONFIG: Buffer.from([
-        12, 20, 222, 252, 130, 94, 198, 118, 148, 37, 8, 24, 187, 101, 64, 101,
-        244, 41, 141, 49, 86, 213, 113, 180, 212, 248, 9, 12, 24, 233, 168, 99
+        12, 20, 222, 252, 130, 94, 198, 118, 148, 37, 8, 24, 187, 101, 64, 101, 244,
+        41, 141, 49, 86, 213, 113, 180, 212, 248, 9, 12, 24, 233, 168, 99,
     ]),
     GLOBAL: Buffer.from("global"),
-    BONDING: Buffer.from("bonding-curve")
+    BONDING: Buffer.from("bonding-curve"),
 };
 const DISCRIMINATORS = {
     BUY: Buffer.from([102, 6, 61, 18, 1, 218, 235, 234]),
     SELL: Buffer.from([51, 230, 133, 164, 1, 127, 131, 173]),
-    TRADE_EVENT: Buffer.from([189, 219, 127, 211, 78, 230, 97, 238])
+    TRADE_EVENT: Buffer.from([189, 219, 127, 211, 78, 230, 97, 238]),
+    // V2 instructions
+    BUY_V2: Buffer.from([184, 23, 238, 97, 103, 197, 211, 61]),
+    SELL_V2: Buffer.from([93, 246, 130, 60, 231, 233, 64, 178]),
+    BUY_EXACT_QUOTE_IN_V2: Buffer.from([194, 171, 28, 70, 104, 77, 91, 47]),
+    COLLECT_CREATOR_FEE_V2: Buffer.from([207, 17, 138, 242, 4, 34, 19, 56]),
 };
 const AMM_FEE_BPS = 100n;
 const BPS_DENOMINATOR = 10000n;
 const PUMP_NEW_FEE_RECIPIENTS = [
+    "62qc2CNXwrYqQScmEdiZFFAnJR262PxWEuNQtxfafNgV",
+    "7VtfL8fvgNfhz17qKRMjzQEXgbdpnHHHQRh54R9jP2RJ",
+    "7hTckgnGnLQR6sdH7YkqFTAA7VwTfYFaZ6EhEsU3saCX",
+    "9rPYyANsfQZw3DnDmKE3YCQF5E8oD89UXoHn9JFEhJUz",
+    "AVmoTthdrX6tKt4nDjco2D775W2YK3sDhxPcMmzUAmTY",
+    "CebN5WGQ4jvEPvsVU4EoHEpgzq1VV7AbicfhtW4xC9iM",
+    "FWsW1xNtWscwNmKv6wVsU1iTzRN6wmmk3MjxRP5tT7hz",
+    "G5UZAVbAf46s7cKWoyKu8kYTip9DGTpbLZ2qa9Aq69dP",
+].map((value) => new web3_js_1.PublicKey(value));
+const PUMP_RESERVED_FEE_RECIPIENTS = [
+    "GesfTA3X2arioaHp8bbKdjG9vJtskViWACZoYvxp4twS",
+    "4budycTjhs9fD6xw62VBducVTNgMgJJ5BgtKq7mAZwn6",
+    "8SBKzEQU4nLSzcwF4a74F2iaUDQyTfjGndn6qUWBnrpR",
+    "4UQeTP1T39KZ9Sfxzo3WR5skgsaP6NZa87BAkuazLEKH",
+    "8sNeir4QsLsJdYpc9RZacohhK1Y5FLU3nC5LXgYB4aa6",
+    "Fh9HmeLNUMVCvejxCtCL2DbYaRyBFVJ5xrWkLnMH6fdk",
+    "463MEnMeGyJekNZFQSTUABBEbLnvMTALbT6ZmsxAbAdq",
+    "6AUH3WEHucYZyC61hqpqYUWVto5qA5hjHuNQ32GNnNxA",
+].map((value) => new web3_js_1.PublicKey(value));
+const PUMP_BUYBACK_FEE_RECIPIENTS = [
     "5YxQFdt3Tr9zJLvkFccqXVUwhdTWJQc1fFg2YPbxvxeD",
     "9M4giFFMxmFGXtc3feFzRai56WbBqehoSeRE5GK7gf7",
     "GXPFM2caqTtQYC2cJ5yJRi9VDkpsYZXzYdwYpGnLmtDL",
@@ -44,11 +68,11 @@ const PUMP_NEW_FEE_RECIPIENTS = [
     "5cjcW9wExnJJiqgLjq7DEG75Pm6JBgE1hNv4B2vHXUW6",
     "EHAAiTxcdDwQ3U4bU6YcMsQGaekdzLS3B5SmYo46kJtL",
     "5eHhjP8JaYkz83CWwvGU2uMUXefd3AazWGx4gpcuEEYD",
-    "A7hAgCzFw14fejgCp387JUJRMNyz4j89JKnhtKU8piqW"
+    "A7hAgCzFw14fejgCp387JUJRMNyz4j89JKnhtKU8piqW",
 ].map((value) => new web3_js_1.PublicKey(value));
 /* ================= 工具函数 ================= */
 const u64 = (v) => {
-    const bn = typeof v === 'bigint' ? new bn_js_1.default(v.toString()) : new bn_js_1.default(v.toString());
+    const bn = typeof v === "bigint" ? new bn_js_1.default(v.toString()) : new bn_js_1.default(v.toString());
     return bn.toArrayLike(Buffer, "le", 8);
 };
 const readU64 = (buf, offset) => {
@@ -62,7 +86,9 @@ const readU32 = (buf, offsetObj) => {
 };
 const readString = (buf, offsetObj) => {
     const len = readU32(buf, offsetObj);
-    const str = buf.slice(offsetObj.offset, offsetObj.offset + len).toString("utf8");
+    const str = buf
+        .slice(offsetObj.offset, offsetObj.offset + len)
+        .toString("utf8");
     offsetObj.offset += len;
     return str;
 };
@@ -81,12 +107,12 @@ function parseMetadataAccount(data) {
         mint: mint.toBase58(),
         name,
         symbol,
-        uri
+        uri,
     };
 }
 function parsePoolKeys(data) {
     if (!data || data.length < 280) {
-        throw new Error('Invalid pool account data');
+        throw new Error("Invalid pool account data");
     }
     let offset = 8;
     const poolBump = data.readUInt8(offset);
@@ -121,17 +147,31 @@ function parsePoolKeys(data) {
         poolQuoteTokenAccount,
         coinCreator,
         isMayhemMode,
-        isCashbackCoin
+        isCashbackCoin,
     };
 }
 /* ================= PumpTrader 类 ================= */
 class PumpTrader {
-    constructor(rpc, privateKey) {
+    constructor(rpc, wallet) {
         this.connection = new web3_js_1.Connection(rpc, "confirmed");
-        this.wallet = web3_js_1.Keypair.fromSecretKey(bs58_1.default.decode(privateKey));
+        if (wallet instanceof web3_js_1.Keypair) {
+            this._wallet = wallet;
+            this.publicKey = wallet.publicKey;
+        }
+        else {
+            this._wallet = wallet;
+            this.publicKey = wallet.publicKey;
+        }
         this.global = web3_js_1.PublicKey.findProgramAddressSync([SEEDS.GLOBAL], PROGRAM_IDS.PUMP)[0];
         this.globalState = null;
         this.tokenProgramCache = new Map();
+    }
+    async signTx(tx) {
+        if (this._wallet instanceof web3_js_1.Keypair) {
+            tx.sign(this._wallet);
+            return tx;
+        }
+        return this._wallet.signTransaction(tx);
     }
     /* ---------- Token Program 检测 ---------- */
     /**
@@ -148,7 +188,7 @@ class PumpTrader {
             const mintData = await (0, spl_token_1.getMint)(this.connection, mint, "confirmed", spl_token_1.TOKEN_2022_PROGRAM_ID);
             const result = {
                 type: "TOKEN_2022_PROGRAM_ID",
-                programId: spl_token_1.TOKEN_2022_PROGRAM_ID
+                programId: spl_token_1.TOKEN_2022_PROGRAM_ID,
             };
             this.tokenProgramCache.set(tokenAddr, result);
             return result;
@@ -159,7 +199,7 @@ class PumpTrader {
                 const mintData = await (0, spl_token_1.getMint)(this.connection, mint, "confirmed", spl_token_1.TOKEN_PROGRAM_ID);
                 const result = {
                     type: "TOKEN_PROGRAM_ID",
-                    programId: spl_token_1.TOKEN_PROGRAM_ID
+                    programId: spl_token_1.TOKEN_PROGRAM_ID,
                 };
                 this.tokenProgramCache.set(tokenAddr, result);
                 return result;
@@ -167,6 +207,19 @@ class PumpTrader {
             catch (error) {
                 throw new Error(`Failed to detect token program for ${tokenAddr}: ${error}`);
             }
+        }
+    }
+    async detectQuoteTokenProgram(quoteMint) {
+        const quoteAddr = quoteMint.toBase58();
+        if (this.tokenProgramCache.has(quoteAddr)) {
+            return this.tokenProgramCache.get(quoteAddr).programId;
+        }
+        try {
+            await (0, spl_token_1.getMint)(this.connection, quoteMint, "confirmed", spl_token_1.TOKEN_2022_PROGRAM_ID);
+            return spl_token_1.TOKEN_2022_PROGRAM_ID;
+        }
+        catch {
+            return spl_token_1.TOKEN_PROGRAM_ID;
         }
     }
     /* ---------- 内盘/外盘检测 ---------- */
@@ -226,7 +279,7 @@ class PumpTrader {
             initialVirtualSolReserves: readU64(),
             initialRealTokenReserves: readU64(),
             tokenTotalSupply: readU64(),
-            feeBasisPoints: readU64()
+            feeBasisPoints: readU64(),
         };
         return this.globalState;
     }
@@ -240,6 +293,15 @@ class PumpTrader {
     pickFeeRecipient(index = 0) {
         return PUMP_NEW_FEE_RECIPIENTS[index % PUMP_NEW_FEE_RECIPIENTS.length];
     }
+    pickBuybackFeeRecipient(index = 0) {
+        return PUMP_BUYBACK_FEE_RECIPIENTS[index % PUMP_BUYBACK_FEE_RECIPIENTS.length];
+    }
+    pickReservedFeeRecipient(index = 0) {
+        return PUMP_RESERVED_FEE_RECIPIENTS[index % PUMP_RESERVED_FEE_RECIPIENTS.length];
+    }
+    getSharingConfigPda(mint) {
+        return web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("sharing-config"), mint.toBuffer()], PROGRAM_IDS.FEE)[0];
+    }
     buildBondingBuyKeys(args) {
         const tokenProgramId = args.tokenProgramId ?? spl_token_1.TOKEN_PROGRAM_ID;
         return [
@@ -247,7 +309,11 @@ class PumpTrader {
             { pubkey: args.globalFeeRecipient, isSigner: false, isWritable: true },
             { pubkey: args.mint, isSigner: false, isWritable: false },
             { pubkey: args.bonding, isSigner: false, isWritable: true },
-            { pubkey: args.associatedBondingCurve, isSigner: false, isWritable: true },
+            {
+                pubkey: args.associatedBondingCurve,
+                isSigner: false,
+                isWritable: true,
+            },
             { pubkey: args.userAta, isSigner: false, isWritable: true },
             { pubkey: args.wallet, isSigner: true, isWritable: true },
             { pubkey: web3_js_1.SystemProgram.programId, isSigner: false, isWritable: false },
@@ -255,12 +321,16 @@ class PumpTrader {
             { pubkey: args.creatorVault, isSigner: false, isWritable: true },
             { pubkey: args.eventAuthority, isSigner: false, isWritable: false },
             { pubkey: args.pumpProgram, isSigner: false, isWritable: false },
-            { pubkey: args.globalVolumeAccumulator, isSigner: false, isWritable: false },
+            {
+                pubkey: args.globalVolumeAccumulator,
+                isSigner: false,
+                isWritable: false,
+            },
             { pubkey: args.userVolumeAccumulator, isSigner: false, isWritable: true },
             { pubkey: args.feeConfig, isSigner: false, isWritable: false },
             { pubkey: args.feeProgram, isSigner: false, isWritable: false },
             { pubkey: args.bondingCurveV2, isSigner: false, isWritable: false },
-            { pubkey: args.feeRecipient, isSigner: false, isWritable: true }
+            { pubkey: args.feeRecipient, isSigner: false, isWritable: true },
         ];
     }
     buildBondingSellKeys(args) {
@@ -270,7 +340,11 @@ class PumpTrader {
             { pubkey: args.globalFeeRecipient, isSigner: false, isWritable: true },
             { pubkey: args.mint, isSigner: false, isWritable: false },
             { pubkey: args.bonding, isSigner: false, isWritable: true },
-            { pubkey: args.associatedBondingCurve, isSigner: false, isWritable: true },
+            {
+                pubkey: args.associatedBondingCurve,
+                isSigner: false,
+                isWritable: true,
+            },
             { pubkey: args.userAta, isSigner: false, isWritable: true },
             { pubkey: args.wallet, isSigner: true, isWritable: true },
             { pubkey: web3_js_1.SystemProgram.programId, isSigner: false, isWritable: false },
@@ -279,10 +353,14 @@ class PumpTrader {
             { pubkey: args.eventAuthority, isSigner: false, isWritable: false },
             { pubkey: args.pumpProgram, isSigner: false, isWritable: false },
             { pubkey: args.feeConfig, isSigner: false, isWritable: false },
-            { pubkey: args.feeProgram, isSigner: false, isWritable: false }
+            { pubkey: args.feeProgram, isSigner: false, isWritable: false },
         ];
         if (args.isCashbackCoin) {
-            keys.push({ pubkey: args.userVolumeAccumulator, isSigner: false, isWritable: true });
+            keys.push({
+                pubkey: args.userVolumeAccumulator,
+                isSigner: false,
+                isWritable: true,
+            });
         }
         keys.push({ pubkey: args.bondingCurveV2, isSigner: false, isWritable: false }, { pubkey: args.feeRecipient, isSigner: false, isWritable: true });
         return keys;
@@ -304,6 +382,18 @@ class PumpTrader {
         offset += 1;
         const creator = new web3_js_1.PublicKey(data.slice(offset, offset + 32));
         offset += 32;
+        // V2 fields (115-byte bonding curve layout): quote_mint, virtual_quote_reserves, real_quote_reserves
+        // For legacy coins these may not be present, check remaining data length
+        if (offset + 32 <= data.length) {
+            state.quoteMint = new web3_js_1.PublicKey(data.slice(offset, offset + 32));
+            offset += 32;
+        }
+        if (offset + 8 <= data.length) {
+            [state.virtualQuoteReserves, offset] = readU64(data, offset);
+        }
+        if (offset + 8 <= data.length) {
+            [state.realQuoteReserves, offset] = readU64(data, offset);
+        }
         state.isMayhemMode = offset < data.length ? data[offset] === 1 : false;
         offset += 1;
         state.isCashbackCoin = offset < data.length ? data[offset] === 1 : false;
@@ -348,14 +438,20 @@ class PumpTrader {
     async getAmmPrice(mint) {
         const [poolCreator] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("pool-authority"), mint.toBuffer()], PROGRAM_IDS.PUMP);
         const indexBuffer = new bn_js_1.default(0).toArrayLike(Buffer, "le", 2);
-        const [pool] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("pool"), indexBuffer, poolCreator.toBuffer(), mint.toBuffer(), SOL_MINT.toBuffer()], PROGRAM_IDS.PUMP_AMM);
+        const [pool] = web3_js_1.PublicKey.findProgramAddressSync([
+            Buffer.from("pool"),
+            indexBuffer,
+            poolCreator.toBuffer(),
+            mint.toBuffer(),
+            SOL_MINT.toBuffer(),
+        ], PROGRAM_IDS.PUMP_AMM);
         const acc = await this.connection.getAccountInfo(pool);
         if (!acc)
             throw new Error("Pool not found");
         const poolKeys = parsePoolKeys(acc.data);
         const [baseInfo, quoteInfo] = await Promise.all([
             this.connection.getTokenAccountBalance(poolKeys.poolBaseTokenAccount),
-            this.connection.getTokenAccountBalance(poolKeys.poolQuoteTokenAccount)
+            this.connection.getTokenAccountBalance(poolKeys.poolQuoteTokenAccount),
         ]);
         return quoteInfo.value.uiAmount / baseInfo.value.uiAmount;
     }
@@ -369,8 +465,9 @@ class PumpTrader {
         if (tokenAddr) {
             // 查询单个代币
             const mint = new web3_js_1.PublicKey(tokenAddr);
-            const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(this.wallet.publicKey, { mint });
-            return tokenAccounts.value[0]?.account.data.parsed.info.tokenAmount.uiAmount || 0;
+            const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(this.publicKey, { mint });
+            return (tokenAccounts.value[0]?.account.data.parsed.info.tokenAmount.uiAmount ||
+                0);
         }
         else {
             // 查询所有代币
@@ -382,11 +479,11 @@ class PumpTrader {
      * @returns 代币信息数组，包含mint地址、余额等信息
      */
     async getAllTokenBalances() {
-        const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(this.wallet.publicKey, { programId: spl_token_1.TOKEN_PROGRAM_ID });
+        const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(this.publicKey, { programId: spl_token_1.TOKEN_PROGRAM_ID });
         const balances = tokenAccounts.value
             .map((account) => {
             const parsed = account.account.data.parsed;
-            if (parsed.type !== 'account')
+            if (parsed.type !== "account")
                 return null;
             const tokenAmount = parsed.info.tokenAmount;
             if (Number(tokenAmount.amount) === 0)
@@ -395,16 +492,16 @@ class PumpTrader {
                 mint: parsed.info.mint,
                 amount: BigInt(tokenAmount.amount),
                 decimals: tokenAmount.decimals,
-                uiAmount: tokenAmount.uiAmount || 0
+                uiAmount: tokenAmount.uiAmount || 0,
             };
         })
             .filter((item) => item !== null);
         // 同时查询 TOKEN_2022_PROGRAM_ID
-        const token2022Accounts = await this.connection.getParsedTokenAccountsByOwner(this.wallet.publicKey, { programId: spl_token_1.TOKEN_2022_PROGRAM_ID });
+        const token2022Accounts = await this.connection.getParsedTokenAccountsByOwner(this.publicKey, { programId: spl_token_1.TOKEN_2022_PROGRAM_ID });
         const token2022Balances = token2022Accounts.value
             .map((account) => {
             const parsed = account.account.data.parsed;
-            if (parsed.type !== 'account')
+            if (parsed.type !== "account")
                 return null;
             const tokenAmount = parsed.info.tokenAmount;
             if (Number(tokenAmount.amount) === 0)
@@ -413,7 +510,7 @@ class PumpTrader {
                 mint: parsed.info.mint,
                 amount: BigInt(tokenAmount.amount),
                 decimals: tokenAmount.decimals,
-                uiAmount: tokenAmount.uiAmount || 0
+                uiAmount: tokenAmount.uiAmount || 0,
             };
         })
             .filter((item) => item !== null);
@@ -431,21 +528,21 @@ class PumpTrader {
             mint: b.mint,
             amount: Number(b.amount),
             decimals: b.decimals,
-            uiAmount: b.uiAmount
+            uiAmount: b.uiAmount,
         }));
         return uniqueBalances;
     }
     async solBalance() {
-        const balance = await this.connection.getBalance(this.wallet.publicKey);
+        const balance = await this.connection.getBalance(this.publicKey);
         return balance / 1e9;
     }
     /* ---------- ATA 管理 ---------- */
     async ensureAta(tx, mint, tokenProgram) {
         const program = tokenProgram || spl_token_1.TOKEN_2022_PROGRAM_ID;
-        const ata = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, this.wallet.publicKey, false, program, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const ata = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, this.publicKey, false, program, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
         const acc = await this.connection.getAccountInfo(ata);
         if (!acc) {
-            tx.add((0, spl_token_1.createAssociatedTokenAccountInstruction)(this.wallet.publicKey, ata, this.wallet.publicKey, mint, program, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID));
+            tx.add((0, spl_token_1.createAssociatedTokenAccountInstruction)(this.publicKey, ata, this.publicKey, mint, program, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID));
         }
         return ata;
     }
@@ -455,11 +552,11 @@ class PumpTrader {
         if (!acc) {
             tx.add((0, spl_token_1.createAssociatedTokenAccountInstruction)(owner, wsolAta, owner, SOL_MINT, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID));
         }
-        if (mode === 'buy' && lamports) {
+        if (mode === "buy" && lamports) {
             tx.add(web3_js_1.SystemProgram.transfer({
                 fromPubkey: owner,
                 toPubkey: wsolAta,
-                lamports: Number(lamports)
+                lamports: Number(lamports),
             }));
             tx.add((0, spl_token_1.createSyncNativeInstruction)(wsolAta));
         }
@@ -470,7 +567,7 @@ class PumpTrader {
         if (!priorityOpt?.enableRandom || !priorityOpt.randomRange) {
             return priorityOpt.base;
         }
-        return priorityOpt.base + Math.floor(Math.random() * priorityOpt.randomRange);
+        return (priorityOpt.base + Math.floor(Math.random() * priorityOpt.randomRange));
     }
     calcSlippage({ tradeSize, reserve, slippageOpt }) {
         const impact = Number(tradeSize) / Math.max(Number(reserve), 1);
@@ -508,26 +605,36 @@ class PumpTrader {
     /* ---------- 统一交易接口 ---------- */
     /**
      * 自动判断内盘/外盘并执行买入
+     * @param useV2 - use buy_v2 instruction (supports USDC quote) instead of legacy buy
+     * @param quoteMint - quote mint for V2 (SOL_MINT for SOL-paired, or USDC mint for USDC-paired)
      */
-    async autoBuy(tokenAddr, totalSolIn, tradeOpt) {
+    async autoBuy(tokenAddr, totalSolIn, tradeOpt, useV2 = false, quoteMint = SOL_MINT) {
         const mode = await this.getTradeMode(tokenAddr);
         if (mode === "bonding") {
+            if (useV2) {
+                return this.buyV2(tokenAddr, totalSolIn, tradeOpt, quoteMint);
+            }
             return this.buy(tokenAddr, totalSolIn, tradeOpt);
         }
         else {
-            return this.ammBuy(tokenAddr, totalSolIn, tradeOpt);
+            return this.ammBuy(tokenAddr, totalSolIn, tradeOpt, quoteMint);
         }
     }
     /**
      * 自动判断内盘/外盘并执行卖出
+     * @param useV2 - use sell_v2 instruction (supports USDC quote) instead of legacy sell
+     * @param quoteMint - quote mint for V2 (SOL_MINT for SOL-paired, or USDC mint for USDC-paired)
      */
-    async autoSell(tokenAddr, totalTokenIn, tradeOpt) {
+    async autoSell(tokenAddr, totalTokenIn, tradeOpt, useV2 = false, quoteMint = SOL_MINT) {
         const mode = await this.getTradeMode(tokenAddr);
         if (mode === "bonding") {
+            if (useV2) {
+                return this.sellV2(tokenAddr, totalTokenIn, tradeOpt, quoteMint);
+            }
             return this.sell(tokenAddr, totalTokenIn, tradeOpt);
         }
         else {
-            return this.ammSell(tokenAddr, totalTokenIn, tradeOpt);
+            return this.ammSell(tokenAddr, totalTokenIn, tradeOpt, quoteMint);
         }
     }
     /* ---------- 内盘交易 ---------- */
@@ -546,7 +653,10 @@ class PumpTrader {
         const associatedBondingCurve = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, bonding, true, tokenProgram.programId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
         const [creatorVault] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("creator-vault"), creator.toBuffer()], PROGRAM_IDS.PUMP);
         const [globalVolumeAccumulator] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("global_volume_accumulator")], PROGRAM_IDS.PUMP);
-        const [userVolumeAccumulator] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("user_volume_accumulator"), this.wallet.publicKey.toBuffer()], PROGRAM_IDS.PUMP);
+        const [userVolumeAccumulator] = web3_js_1.PublicKey.findProgramAddressSync([
+            Buffer.from("user_volume_accumulator"),
+            this.publicKey.toBuffer(),
+        ], PROGRAM_IDS.PUMP);
         const [feeConfig] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("fee_config"), SEEDS.FEE_CONFIG], PROGRAM_IDS.FEE);
         const feeRecipient = this.pickFeeRecipient();
         for (let i = 0; i < solChunks.length; i++) {
@@ -556,7 +666,7 @@ class PumpTrader {
                 const slippageBps = this.calcSlippage({
                     tradeSize: solIn,
                     reserve: state.virtualSolReserves,
-                    slippageOpt: tradeOpt.slippage
+                    slippageOpt: tradeOpt.slippage,
                 });
                 const maxSol = (solIn * BigInt(10_000 + slippageBps)) / 10000n;
                 const priority = this.genPriority(tradeOpt.priority);
@@ -571,7 +681,7 @@ class PumpTrader {
                         bonding,
                         associatedBondingCurve,
                         userAta,
-                        wallet: this.wallet.publicKey,
+                        wallet: this.publicKey,
                         creatorVault,
                         eventAuthority: PROGRAM_IDS.EVENT_AUTHORITY,
                         pumpProgram: PROGRAM_IDS.PUMP,
@@ -581,28 +691,32 @@ class PumpTrader {
                         feeProgram: PROGRAM_IDS.FEE,
                         bondingCurveV2,
                         feeRecipient,
-                        tokenProgramId: tokenProgram.programId
+                        tokenProgramId: tokenProgram.programId,
                     }),
-                    data: Buffer.concat([DISCRIMINATORS.BUY, u64(tokenOut), u64(maxSol)])
+                    data: Buffer.concat([
+                        DISCRIMINATORS.BUY,
+                        u64(tokenOut),
+                        u64(maxSol),
+                    ]),
                 }));
-                const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('finalized');
+                const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash("finalized");
                 tx.recentBlockhash = blockhash;
-                tx.feePayer = this.wallet.publicKey;
-                tx.sign(this.wallet);
+                tx.feePayer = this.publicKey;
+                await this.signTx(tx);
                 const signature = await this.connection.sendRawTransaction(tx.serialize(), {
                     skipPreflight: false,
-                    maxRetries: 2
+                    maxRetries: 2,
                 });
                 pendingTransactions.push({
                     signature,
                     lastValidBlockHeight,
-                    index: i
+                    index: i,
                 });
             }
             catch (e) {
                 failedTransactions.push({
                     index: i,
-                    error: e.message
+                    error: e.message,
                 });
             }
         }
@@ -624,10 +738,13 @@ class PumpTrader {
         const pendingTransactions = [];
         const failedTransactions = [];
         const associatedBondingCurve = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, bonding, true, tokenProgram.programId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
-        const userAta = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, this.wallet.publicKey, false, tokenProgram.programId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const userAta = (0, spl_token_1.getAssociatedTokenAddressSync)(mint, this.publicKey, false, tokenProgram.programId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
         const [creatorVault] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("creator-vault"), creator.toBuffer()], PROGRAM_IDS.PUMP);
         const [feeConfig] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("fee_config"), SEEDS.FEE_CONFIG], PROGRAM_IDS.FEE);
-        const [userVolumeAccumulator] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("user_volume_accumulator"), this.wallet.publicKey.toBuffer()], PROGRAM_IDS.PUMP);
+        const [userVolumeAccumulator] = web3_js_1.PublicKey.findProgramAddressSync([
+            Buffer.from("user_volume_accumulator"),
+            this.publicKey.toBuffer(),
+        ], PROGRAM_IDS.PUMP);
         const feeRecipient = this.pickFeeRecipient();
         for (let i = 0; i < tokenChunks.length; i++) {
             try {
@@ -636,7 +753,7 @@ class PumpTrader {
                 const slippageBps = this.calcSlippage({
                     tradeSize: tokenIn,
                     reserve: state.virtualTokenReserves,
-                    slippageOpt: tradeOpt.slippage
+                    slippageOpt: tradeOpt.slippage,
                 });
                 const minSol = (solOut * BigInt(10_000 - slippageBps)) / 10000n;
                 const priority = this.genPriority(tradeOpt.priority);
@@ -650,7 +767,7 @@ class PumpTrader {
                         bonding,
                         associatedBondingCurve,
                         userAta,
-                        wallet: this.wallet.publicKey,
+                        wallet: this.publicKey,
                         creatorVault,
                         eventAuthority: PROGRAM_IDS.EVENT_AUTHORITY,
                         pumpProgram: PROGRAM_IDS.PUMP,
@@ -660,41 +777,45 @@ class PumpTrader {
                         feeRecipient,
                         isCashbackCoin: !!state.isCashbackCoin,
                         userVolumeAccumulator,
-                        tokenProgramId: tokenProgram.programId
+                        tokenProgramId: tokenProgram.programId,
                     }),
                     data: Buffer.concat([
                         DISCRIMINATORS.SELL,
                         u64(tokenIn),
-                        u64(minSol > 0n ? minSol : 1n)
-                    ])
+                        u64(minSol > 0n ? minSol : 1n),
+                    ]),
                 }));
                 const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash("finalized");
                 tx.recentBlockhash = blockhash;
-                tx.feePayer = this.wallet.publicKey;
-                tx.sign(this.wallet);
+                tx.feePayer = this.publicKey;
+                await this.signTx(tx);
                 const signature = await this.connection.sendRawTransaction(tx.serialize());
                 pendingTransactions.push({
                     signature,
                     lastValidBlockHeight,
-                    index: i
+                    index: i,
                 });
             }
             catch (e) {
                 failedTransactions.push({
                     index: i,
-                    error: e.message
+                    error: e.message,
                 });
             }
         }
         return { pendingTransactions, failedTransactions };
     }
     /* ---------- 外盘交易 ---------- */
-    async ammBuy(tokenAddr, totalSolIn, tradeOpt) {
+    async ammBuy(tokenAddr, totalSolIn, tradeOpt, quoteMint = SOL_MINT) {
         const mint = new web3_js_1.PublicKey(tokenAddr);
-        const poolInfo = await this.getAmmPoolInfo(mint);
+        const poolInfo = await this.getAmmPoolInfo(mint, quoteMint);
         const reserves = await this.getAmmPoolReserves(poolInfo.poolKeys);
         const solChunks = this.splitByMax(totalSolIn, tradeOpt.maxSolPerTx);
         const tokenProgram = await this.detectTokenProgram(tokenAddr);
+        const isSolQuote = quoteMint.equals(SOL_MINT);
+        const quoteTokenProgramId = isSolQuote
+            ? spl_token_1.TOKEN_PROGRAM_ID
+            : await this.detectQuoteTokenProgram(quoteMint);
         const pendingTransactions = [];
         const failedTransactions = [];
         for (let i = 0; i < solChunks.length; i++) {
@@ -704,45 +825,53 @@ class PumpTrader {
                 const slippageBps = this.calcSlippage({
                     tradeSize: solIn,
                     reserve: reserves.quoteAmount,
-                    slippageOpt: tradeOpt.slippage
+                    slippageOpt: tradeOpt.slippage,
                 });
                 const maxQuoteIn = (solIn * BigInt(10_000 + slippageBps)) / 10000n;
                 const priority = this.genPriority(tradeOpt.priority);
                 const tx = new web3_js_1.Transaction().add(web3_js_1.ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }), web3_js_1.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority }));
                 const userBaseAta = await this.ensureAta(tx, poolInfo.poolKeys.baseMint, tokenProgram.programId);
-                const userQuoteAta = await this.ensureWSOLAta(tx, this.wallet.publicKey, "buy", maxQuoteIn);
+                const userQuoteAta = isSolQuote
+                    ? await this.ensureWSOLAta(tx, this.publicKey, "buy", maxQuoteIn)
+                    : await this.ensureAta(tx, quoteMint, quoteTokenProgramId);
                 const buyIx = this.createAmmBuyInstruction(poolInfo, userBaseAta, userQuoteAta, baseAmountOut, maxQuoteIn, tokenProgram.programId);
                 tx.add(buyIx);
-                tx.add((0, spl_token_1.createCloseAccountInstruction)(userQuoteAta, this.wallet.publicKey, this.wallet.publicKey));
-                const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('finalized');
+                if (isSolQuote) {
+                    tx.add((0, spl_token_1.createCloseAccountInstruction)(userQuoteAta, this.publicKey, this.publicKey));
+                }
+                const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash("finalized");
                 tx.recentBlockhash = blockhash;
-                tx.feePayer = this.wallet.publicKey;
-                tx.sign(this.wallet);
+                tx.feePayer = this.publicKey;
+                await this.signTx(tx);
                 const signature = await this.connection.sendRawTransaction(tx.serialize(), {
                     skipPreflight: false,
-                    maxRetries: 2
+                    maxRetries: 2,
                 });
                 pendingTransactions.push({
                     signature,
                     lastValidBlockHeight,
-                    index: i
+                    index: i,
                 });
             }
             catch (e) {
                 failedTransactions.push({
                     index: i,
-                    error: e.message
+                    error: e.message,
                 });
             }
         }
         return { pendingTransactions, failedTransactions };
     }
-    async ammSell(tokenAddr, totalTokenIn, tradeOpt) {
+    async ammSell(tokenAddr, totalTokenIn, tradeOpt, quoteMint = SOL_MINT) {
         const mint = new web3_js_1.PublicKey(tokenAddr);
-        const poolInfo = await this.getAmmPoolInfo(mint);
+        const poolInfo = await this.getAmmPoolInfo(mint, quoteMint);
         const reserves = await this.getAmmPoolReserves(poolInfo.poolKeys);
         const totalSolOut = this.calculateAmmSellOutput(totalTokenIn, reserves);
         const tokenProgram = await this.detectTokenProgram(tokenAddr);
+        const isSolQuote = quoteMint.equals(SOL_MINT);
+        const quoteTokenProgramId = isSolQuote
+            ? spl_token_1.TOKEN_PROGRAM_ID
+            : await this.detectQuoteTokenProgram(quoteMint);
         const tokenChunks = totalSolOut <= tradeOpt.maxSolPerTx
             ? [totalTokenIn]
             : this.splitIntoN(totalTokenIn, Number((totalSolOut + tradeOpt.maxSolPerTx - 1n) / tradeOpt.maxSolPerTx));
@@ -755,48 +884,52 @@ class PumpTrader {
                 const slippageBps = this.calcSlippage({
                     tradeSize: tokenIn,
                     reserve: reserves.baseAmount,
-                    slippageOpt: tradeOpt.slippage
+                    slippageOpt: tradeOpt.slippage,
                 });
                 const minQuoteOut = (solOut * BigInt(10_000 - slippageBps)) / 10000n;
                 const priority = this.genPriority(tradeOpt.priority);
                 const tx = new web3_js_1.Transaction().add(web3_js_1.ComputeBudgetProgram.setComputeUnitLimit({ units: 300_000 }), web3_js_1.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority }));
                 const userBaseAta = await this.ensureAta(tx, poolInfo.poolKeys.baseMint, tokenProgram.programId);
-                const userQuoteAta = await this.ensureWSOLAta(tx, this.wallet.publicKey, "sell");
+                const userQuoteAta = isSolQuote
+                    ? await this.ensureWSOLAta(tx, this.publicKey, "sell")
+                    : await this.ensureAta(tx, quoteMint, quoteTokenProgramId);
                 const sellIx = this.createAmmSellInstruction(poolInfo, userBaseAta, userQuoteAta, tokenIn, minQuoteOut, tokenProgram.programId);
                 tx.add(sellIx);
-                tx.add((0, spl_token_1.createCloseAccountInstruction)(userQuoteAta, this.wallet.publicKey, this.wallet.publicKey));
-                const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('finalized');
+                if (isSolQuote) {
+                    tx.add((0, spl_token_1.createCloseAccountInstruction)(userQuoteAta, this.publicKey, this.publicKey));
+                }
+                const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash("finalized");
                 tx.recentBlockhash = blockhash;
-                tx.feePayer = this.wallet.publicKey;
-                tx.sign(this.wallet);
+                tx.feePayer = this.publicKey;
+                await this.signTx(tx);
                 const signature = await this.connection.sendRawTransaction(tx.serialize(), {
                     skipPreflight: false,
-                    maxRetries: 2
+                    maxRetries: 2,
                 });
                 pendingTransactions.push({
                     signature,
                     lastValidBlockHeight,
-                    index: i
+                    index: i,
                 });
             }
             catch (e) {
                 failedTransactions.push({
                     index: i,
-                    error: e.message
+                    error: e.message,
                 });
             }
         }
         return { pendingTransactions, failedTransactions };
     }
     /* ---------- AMM 池信息 ---------- */
-    async getAmmPoolInfo(mint) {
+    async getAmmPoolInfo(mint, quoteMint = SOL_MINT) {
         const [poolAuthority] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("pool-authority"), mint.toBuffer()], PROGRAM_IDS.PUMP);
         const [pool] = web3_js_1.PublicKey.findProgramAddressSync([
             Buffer.from("pool"),
             new bn_js_1.default(0).toArrayLike(Buffer, "le", 2),
             poolAuthority.toBuffer(),
             mint.toBuffer(),
-            SOL_MINT.toBuffer()
+            quoteMint.toBuffer(),
         ], PROGRAM_IDS.PUMP_AMM);
         const acc = await this.connection.getAccountInfo(pool);
         if (!acc)
@@ -826,13 +959,13 @@ class PumpTrader {
     async getAmmPoolReserves(poolKeys) {
         const [baseInfo, quoteInfo] = await Promise.all([
             this.connection.getTokenAccountBalance(poolKeys.poolBaseTokenAccount),
-            this.connection.getTokenAccountBalance(poolKeys.poolQuoteTokenAccount)
+            this.connection.getTokenAccountBalance(poolKeys.poolQuoteTokenAccount),
         ]);
         return {
             baseAmount: BigInt(baseInfo.value.amount),
             quoteAmount: BigInt(quoteInfo.value.amount),
             baseDecimals: baseInfo.value.decimals,
-            quoteDecimals: quoteInfo.value.decimals
+            quoteDecimals: quoteInfo.value.decimals,
         };
     }
     deriveAmmPoolV2(baseMint) {
@@ -846,7 +979,10 @@ class PumpTrader {
         const [coinCreatorVaultAuthority] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("creator_vault"), poolKeys.coinCreator.toBuffer()], PROGRAM_IDS.PUMP_AMM);
         const coinCreatorVaultAta = (0, spl_token_1.getAssociatedTokenAddressSync)(SOL_MINT, coinCreatorVaultAuthority, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
         const [globalVolumeAccumulator] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("global_volume_accumulator")], PROGRAM_IDS.PUMP_AMM);
-        const [userVolumeAccumulator] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("user_volume_accumulator"), this.wallet.publicKey.toBuffer()], PROGRAM_IDS.PUMP_AMM);
+        const [userVolumeAccumulator] = web3_js_1.PublicKey.findProgramAddressSync([
+            Buffer.from("user_volume_accumulator"),
+            this.publicKey.toBuffer(),
+        ], PROGRAM_IDS.PUMP_AMM);
         const [feeConfig] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("fee_config"), SEEDS.AMM_FEE_CONFIG], PROGRAM_IDS.FEE);
         const protocolFeeRecipient = globalConfig.protocolFeeRecipients[0];
         const protocolFeeRecipientTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(SOL_MINT, protocolFeeRecipient, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
@@ -855,44 +991,72 @@ class PumpTrader {
         const remainingKeys = [];
         if (poolKeys.isCashbackCoin) {
             const userVolumeAccumulatorWsolAta = (0, spl_token_1.getAssociatedTokenAddressSync)(SOL_MINT, userVolumeAccumulator, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
-            remainingKeys.push({ pubkey: userVolumeAccumulatorWsolAta, isSigner: false, isWritable: true });
+            remainingKeys.push({
+                pubkey: userVolumeAccumulatorWsolAta,
+                isSigner: false,
+                isWritable: true,
+            });
         }
         remainingKeys.push({ pubkey: poolV2, isSigner: false, isWritable: false });
-        remainingKeys.push({ pubkey: newFeeRecipient, isSigner: false, isWritable: false }, { pubkey: newFeeRecipientTokenAccount, isSigner: false, isWritable: true });
+        remainingKeys.push({ pubkey: newFeeRecipient, isSigner: false, isWritable: false }, {
+            pubkey: newFeeRecipientTokenAccount,
+            isSigner: false,
+            isWritable: true,
+        });
         return new web3_js_1.TransactionInstruction({
             programId: PROGRAM_IDS.PUMP_AMM,
             keys: [
                 { pubkey: pool, isSigner: false, isWritable: true },
-                { pubkey: this.wallet.publicKey, isSigner: true, isWritable: true },
+                { pubkey: this.publicKey, isSigner: true, isWritable: true },
                 { pubkey: globalConfig.address, isSigner: false, isWritable: false },
                 { pubkey: poolKeys.baseMint, isSigner: false, isWritable: false },
                 { pubkey: poolKeys.quoteMint, isSigner: false, isWritable: false },
                 { pubkey: userBaseAta, isSigner: false, isWritable: true },
                 { pubkey: userQuoteAta, isSigner: false, isWritable: true },
-                { pubkey: poolKeys.poolBaseTokenAccount, isSigner: false, isWritable: true },
-                { pubkey: poolKeys.poolQuoteTokenAccount, isSigner: false, isWritable: true },
+                {
+                    pubkey: poolKeys.poolBaseTokenAccount,
+                    isSigner: false,
+                    isWritable: true,
+                },
+                {
+                    pubkey: poolKeys.poolQuoteTokenAccount,
+                    isSigner: false,
+                    isWritable: true,
+                },
                 { pubkey: protocolFeeRecipient, isSigner: false, isWritable: false },
-                { pubkey: protocolFeeRecipientTokenAccount, isSigner: false, isWritable: true },
+                {
+                    pubkey: protocolFeeRecipientTokenAccount,
+                    isSigner: false,
+                    isWritable: true,
+                },
                 { pubkey: tokenProgramId, isSigner: false, isWritable: false },
                 { pubkey: spl_token_1.TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
                 { pubkey: web3_js_1.SystemProgram.programId, isSigner: false, isWritable: false },
-                { pubkey: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+                {
+                    pubkey: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+                    isSigner: false,
+                    isWritable: false,
+                },
                 { pubkey: eventAuthority, isSigner: false, isWritable: false },
                 { pubkey: PROGRAM_IDS.PUMP_AMM, isSigner: false, isWritable: false },
                 { pubkey: coinCreatorVaultAta, isSigner: false, isWritable: true },
-                { pubkey: coinCreatorVaultAuthority, isSigner: false, isWritable: false },
+                {
+                    pubkey: coinCreatorVaultAuthority,
+                    isSigner: false,
+                    isWritable: false,
+                },
                 { pubkey: globalVolumeAccumulator, isSigner: false, isWritable: false },
                 { pubkey: userVolumeAccumulator, isSigner: false, isWritable: true },
                 { pubkey: feeConfig, isSigner: false, isWritable: false },
                 { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
-                ...remainingKeys
+                ...remainingKeys,
             ],
             data: Buffer.concat([
                 DISCRIMINATORS.BUY,
                 u64(baseAmountOut),
                 u64(maxQuoteAmountIn),
-                Buffer.from([1, 1])
-            ])
+                Buffer.from([1, 1]),
+            ]),
         });
     }
     createAmmSellInstruction(poolInfo, userBaseAta, userQuoteAta, baseAmountIn, minQuoteAmountOut, tokenProgramId) {
@@ -906,76 +1070,515 @@ class PumpTrader {
         const protocolFeeRecipientTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(SOL_MINT, protocolFeeRecipient, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
         const newFeeRecipient = this.pickFeeRecipient();
         const newFeeRecipientTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(poolKeys.quoteMint, newFeeRecipient, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
-        const [userVolumeAccumulator] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("user_volume_accumulator"), this.wallet.publicKey.toBuffer()], PROGRAM_IDS.PUMP_AMM);
+        const [userVolumeAccumulator] = web3_js_1.PublicKey.findProgramAddressSync([
+            Buffer.from("user_volume_accumulator"),
+            this.publicKey.toBuffer(),
+        ], PROGRAM_IDS.PUMP_AMM);
         const userVolumeAccumulatorWsolAta = (0, spl_token_1.getAssociatedTokenAddressSync)(SOL_MINT, userVolumeAccumulator, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
         const remainingKeys = [];
         if (poolKeys.isCashbackCoin) {
-            remainingKeys.push({ pubkey: userVolumeAccumulatorWsolAta, isSigner: false, isWritable: true }, { pubkey: userVolumeAccumulator, isSigner: false, isWritable: true });
+            remainingKeys.push({
+                pubkey: userVolumeAccumulatorWsolAta,
+                isSigner: false,
+                isWritable: true,
+            }, { pubkey: userVolumeAccumulator, isSigner: false, isWritable: true });
         }
         remainingKeys.push({ pubkey: poolV2, isSigner: false, isWritable: false });
-        remainingKeys.push({ pubkey: newFeeRecipient, isSigner: false, isWritable: false }, { pubkey: newFeeRecipientTokenAccount, isSigner: false, isWritable: true });
+        remainingKeys.push({ pubkey: newFeeRecipient, isSigner: false, isWritable: false }, {
+            pubkey: newFeeRecipientTokenAccount,
+            isSigner: false,
+            isWritable: true,
+        });
         return new web3_js_1.TransactionInstruction({
             programId: PROGRAM_IDS.PUMP_AMM,
             keys: [
                 { pubkey: pool, isSigner: false, isWritable: true },
-                { pubkey: this.wallet.publicKey, isSigner: true, isWritable: true },
+                { pubkey: this.publicKey, isSigner: true, isWritable: true },
                 { pubkey: globalConfig.address, isSigner: false, isWritable: false },
                 { pubkey: poolKeys.baseMint, isSigner: false, isWritable: false },
                 { pubkey: poolKeys.quoteMint, isSigner: false, isWritable: false },
                 { pubkey: userBaseAta, isSigner: false, isWritable: true },
                 { pubkey: userQuoteAta, isSigner: false, isWritable: true },
-                { pubkey: poolKeys.poolBaseTokenAccount, isSigner: false, isWritable: true },
-                { pubkey: poolKeys.poolQuoteTokenAccount, isSigner: false, isWritable: true },
+                {
+                    pubkey: poolKeys.poolBaseTokenAccount,
+                    isSigner: false,
+                    isWritable: true,
+                },
+                {
+                    pubkey: poolKeys.poolQuoteTokenAccount,
+                    isSigner: false,
+                    isWritable: true,
+                },
                 { pubkey: protocolFeeRecipient, isSigner: false, isWritable: false },
-                { pubkey: protocolFeeRecipientTokenAccount, isSigner: false, isWritable: true },
+                {
+                    pubkey: protocolFeeRecipientTokenAccount,
+                    isSigner: false,
+                    isWritable: true,
+                },
                 { pubkey: tokenProgramId, isSigner: false, isWritable: false },
                 { pubkey: spl_token_1.TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
                 { pubkey: web3_js_1.SystemProgram.programId, isSigner: false, isWritable: false },
-                { pubkey: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+                {
+                    pubkey: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+                    isSigner: false,
+                    isWritable: false,
+                },
                 { pubkey: eventAuthority, isSigner: false, isWritable: false },
                 { pubkey: PROGRAM_IDS.PUMP_AMM, isSigner: false, isWritable: false },
                 { pubkey: coinCreatorVaultAta, isSigner: false, isWritable: true },
-                { pubkey: coinCreatorVaultAuthority, isSigner: false, isWritable: false },
+                {
+                    pubkey: coinCreatorVaultAuthority,
+                    isSigner: false,
+                    isWritable: false,
+                },
                 { pubkey: feeConfig, isSigner: false, isWritable: false },
                 { pubkey: PROGRAM_IDS.FEE, isSigner: false, isWritable: false },
-                ...remainingKeys
+                ...remainingKeys,
             ],
             data: Buffer.concat([
                 DISCRIMINATORS.SELL,
                 u64(baseAmountIn),
-                u64(minQuoteAmountOut > 0n ? minQuoteAmountOut : 1n)
-            ])
+                u64(minQuoteAmountOut > 0n ? minQuoteAmountOut : 1n),
+            ]),
         });
+    }
+    /* ---------- V2 指令账户构建 ---------- */
+    /**
+     * Build accounts for buy_v2 instruction (27 accounts)
+     * Ref: https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/BUY.md
+     */
+    buildBondingBuyV2Keys(args) {
+        return [
+            { pubkey: args.global, isSigner: false, isWritable: false },
+            { pubkey: args.baseMint, isSigner: false, isWritable: false },
+            { pubkey: args.quoteMint, isSigner: false, isWritable: false },
+            { pubkey: args.baseTokenProgram, isSigner: false, isWritable: false },
+            { pubkey: args.quoteTokenProgram, isSigner: false, isWritable: false },
+            {
+                pubkey: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+                isSigner: false,
+                isWritable: false,
+            },
+            { pubkey: args.feeRecipient, isSigner: false, isWritable: true },
+            {
+                pubkey: args.associatedQuoteFeeRecipient,
+                isSigner: false,
+                isWritable: true,
+            },
+            { pubkey: args.buybackFeeRecipient, isSigner: false, isWritable: true },
+            {
+                pubkey: args.associatedQuoteBuybackFeeRecipient,
+                isSigner: false,
+                isWritable: true,
+            },
+            { pubkey: args.bondingCurve, isSigner: false, isWritable: true },
+            {
+                pubkey: args.associatedBaseBondingCurve,
+                isSigner: false,
+                isWritable: true,
+            },
+            {
+                pubkey: args.associatedQuoteBondingCurve,
+                isSigner: false,
+                isWritable: true,
+            },
+            { pubkey: args.user, isSigner: true, isWritable: true },
+            { pubkey: args.associatedBaseUser, isSigner: false, isWritable: true },
+            { pubkey: args.associatedQuoteUser, isSigner: false, isWritable: true },
+            { pubkey: args.creatorVault, isSigner: false, isWritable: true },
+            {
+                pubkey: args.associatedCreatorVault,
+                isSigner: false,
+                isWritable: true,
+            },
+            { pubkey: args.sharingConfig, isSigner: false, isWritable: false },
+            {
+                pubkey: args.globalVolumeAccumulator,
+                isSigner: false,
+                isWritable: false,
+            },
+            { pubkey: args.userVolumeAccumulator, isSigner: false, isWritable: true },
+            {
+                pubkey: args.associatedUserVolumeAccumulator,
+                isSigner: false,
+                isWritable: true,
+            },
+            { pubkey: args.feeConfig, isSigner: false, isWritable: false },
+            { pubkey: args.feeProgram, isSigner: false, isWritable: false },
+            { pubkey: web3_js_1.SystemProgram.programId, isSigner: false, isWritable: false },
+            { pubkey: args.eventAuthority, isSigner: false, isWritable: false },
+            { pubkey: args.pumpProgram, isSigner: false, isWritable: false },
+        ];
+    }
+    /**
+     * Build accounts for sell_v2 instruction (26 accounts)
+     * Ref: https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/SELL.md
+     */
+    buildBondingSellV2Keys(args) {
+        return [
+            { pubkey: args.global, isSigner: false, isWritable: false },
+            { pubkey: args.baseMint, isSigner: false, isWritable: false },
+            { pubkey: args.quoteMint, isSigner: false, isWritable: false },
+            { pubkey: args.baseTokenProgram, isSigner: false, isWritable: false },
+            { pubkey: args.quoteTokenProgram, isSigner: false, isWritable: false },
+            {
+                pubkey: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+                isSigner: false,
+                isWritable: false,
+            },
+            { pubkey: args.feeRecipient, isSigner: false, isWritable: true },
+            {
+                pubkey: args.associatedQuoteFeeRecipient,
+                isSigner: false,
+                isWritable: true,
+            },
+            { pubkey: args.buybackFeeRecipient, isSigner: false, isWritable: true },
+            {
+                pubkey: args.associatedQuoteBuybackFeeRecipient,
+                isSigner: false,
+                isWritable: true,
+            },
+            { pubkey: args.bondingCurve, isSigner: false, isWritable: true },
+            {
+                pubkey: args.associatedBaseBondingCurve,
+                isSigner: false,
+                isWritable: true,
+            },
+            {
+                pubkey: args.associatedQuoteBondingCurve,
+                isSigner: false,
+                isWritable: true,
+            },
+            { pubkey: args.user, isSigner: true, isWritable: true },
+            { pubkey: args.associatedBaseUser, isSigner: false, isWritable: true },
+            { pubkey: args.associatedQuoteUser, isSigner: false, isWritable: true },
+            { pubkey: args.creatorVault, isSigner: false, isWritable: true },
+            {
+                pubkey: args.associatedCreatorVault,
+                isSigner: false,
+                isWritable: true,
+            },
+            { pubkey: args.sharingConfig, isSigner: false, isWritable: false },
+            { pubkey: args.userVolumeAccumulator, isSigner: false, isWritable: true },
+            {
+                pubkey: args.associatedUserVolumeAccumulator,
+                isSigner: false,
+                isWritable: true,
+            },
+            { pubkey: args.feeConfig, isSigner: false, isWritable: false },
+            { pubkey: args.feeProgram, isSigner: false, isWritable: false },
+            { pubkey: web3_js_1.SystemProgram.programId, isSigner: false, isWritable: false },
+            { pubkey: args.eventAuthority, isSigner: false, isWritable: false },
+            { pubkey: args.pumpProgram, isSigner: false, isWritable: false },
+        ];
+    }
+    /* ---------- V2 交易 ---------- */
+    /**
+     * Buy using buy_v2 instruction (supports both SOL-paired and USDC-paired coins)
+     * For SOL-paired coins: quoteMint = SOL_MINT, quoteTokenProgram = TOKEN_PROGRAM_ID
+     * For USDC-paired coins: quoteMint = USDC mint, quoteTokenProgram = TOKEN_PROGRAM_ID
+     */
+    async buyV2(tokenAddr, totalQuoteIn, tradeOpt, quoteMint = SOL_MINT) {
+        const baseMint = new web3_js_1.PublicKey(tokenAddr);
+        const baseTokenProgram = await this.detectTokenProgram(tokenAddr);
+        const quoteTokenProgramId = quoteMint.equals(SOL_MINT)
+            ? spl_token_1.TOKEN_PROGRAM_ID
+            : spl_token_1.TOKEN_PROGRAM_ID;
+        if (!this.globalState)
+            await this.loadGlobal();
+        const { bonding, state, creator } = await this.loadBonding(baseMint);
+        if (state.complete)
+            throw new Error("Bonding curve already completed");
+        const solEquivalent = quoteMint.equals(SOL_MINT) ? totalQuoteIn : 0n;
+        const quoteChunks = solEquivalent > 0n
+            ? this.splitByMax(solEquivalent, tradeOpt.maxSolPerTx)
+            : this.splitByMax(totalQuoteIn, tradeOpt.maxSolPerTx);
+        const pendingTransactions = [];
+        const failedTransactions = [];
+        // Pre-compute PDAs
+        const associatedBaseBondingCurve = (0, spl_token_1.getAssociatedTokenAddressSync)(baseMint, bonding, true, baseTokenProgram.programId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const associatedQuoteBondingCurve = (0, spl_token_1.getAssociatedTokenAddressSync)(quoteMint, bonding, true, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const [creatorVault] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("creator-vault"), creator.toBuffer()], PROGRAM_IDS.PUMP);
+        const associatedCreatorVault = (0, spl_token_1.getAssociatedTokenAddressSync)(quoteMint, creatorVault, true, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const [globalVolumeAccumulator] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("global_volume_accumulator")], PROGRAM_IDS.PUMP);
+        const [userVolumeAccumulator] = web3_js_1.PublicKey.findProgramAddressSync([
+            Buffer.from("user_volume_accumulator"),
+            this.publicKey.toBuffer(),
+        ], PROGRAM_IDS.PUMP);
+        const associatedUserVolumeAccumulator = (0, spl_token_1.getAssociatedTokenAddressSync)(quoteMint, userVolumeAccumulator, true, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const [feeConfig] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("fee_config"), SEEDS.FEE_CONFIG], PROGRAM_IDS.FEE);
+        const sharingConfig = this.getSharingConfigPda(baseMint);
+        const feeRecipient = this.pickFeeRecipient();
+        const associatedQuoteFeeRecipient = (0, spl_token_1.getAssociatedTokenAddressSync)(quoteMint, feeRecipient, true, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const buybackFeeRecipient = this.pickBuybackFeeRecipient();
+        const associatedQuoteBuybackFeeRecipient = (0, spl_token_1.getAssociatedTokenAddressSync)(quoteMint, buybackFeeRecipient, true, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const associatedQuoteUser = (0, spl_token_1.getAssociatedTokenAddressSync)(quoteMint, this.publicKey, false, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        for (let i = 0; i < quoteChunks.length; i++) {
+            try {
+                const quoteIn = quoteChunks[i];
+                const tokenOut = this.calcBuy(quoteIn, state);
+                const slippageBps = this.calcSlippage({
+                    tradeSize: quoteIn,
+                    reserve: state.virtualSolReserves,
+                    slippageOpt: tradeOpt.slippage,
+                });
+                const maxQuoteCost = (quoteIn * BigInt(10_000 + slippageBps)) / 10000n;
+                const priority = this.genPriority(tradeOpt.priority);
+                const tx = new web3_js_1.Transaction().add(web3_js_1.ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }), web3_js_1.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority }));
+                // For SOL-paired coins, need wSOL ATA for the user's quote account
+                if (quoteMint.equals(SOL_MINT)) {
+                    await this.ensureWSOLAta(tx, this.publicKey, "buy", maxQuoteCost);
+                }
+                else {
+                    // For non-SOL quote (e.g. USDC), ensure user has the quote token ATA
+                    const userQuoteAta = (0, spl_token_1.getAssociatedTokenAddressSync)(quoteMint, this.publicKey, false, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+                    const acc = await this.connection.getAccountInfo(userQuoteAta);
+                    if (!acc) {
+                        tx.add((0, spl_token_1.createAssociatedTokenAccountInstruction)(this.publicKey, userQuoteAta, this.publicKey, quoteMint, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID));
+                    }
+                }
+                const userBaseAta = await this.ensureAta(tx, baseMint, baseTokenProgram.programId);
+                tx.add(new web3_js_1.TransactionInstruction({
+                    programId: PROGRAM_IDS.PUMP,
+                    keys: this.buildBondingBuyV2Keys({
+                        global: this.global,
+                        baseMint,
+                        quoteMint,
+                        baseTokenProgram: baseTokenProgram.programId,
+                        quoteTokenProgram: quoteTokenProgramId,
+                        feeRecipient,
+                        associatedQuoteFeeRecipient,
+                        buybackFeeRecipient,
+                        associatedQuoteBuybackFeeRecipient,
+                        bondingCurve: bonding,
+                        associatedBaseBondingCurve,
+                        associatedQuoteBondingCurve,
+                        user: this.publicKey,
+                        associatedBaseUser: userBaseAta,
+                        associatedQuoteUser,
+                        creatorVault,
+                        associatedCreatorVault,
+                        sharingConfig,
+                        globalVolumeAccumulator,
+                        userVolumeAccumulator,
+                        associatedUserVolumeAccumulator,
+                        feeConfig,
+                        feeProgram: PROGRAM_IDS.FEE,
+                        eventAuthority: PROGRAM_IDS.EVENT_AUTHORITY,
+                        pumpProgram: PROGRAM_IDS.PUMP,
+                    }),
+                    data: Buffer.concat([
+                        DISCRIMINATORS.BUY_V2,
+                        u64(tokenOut),
+                        u64(maxQuoteCost),
+                    ]),
+                }));
+                // Close wSOL ATA after buy for SOL-paired coins
+                if (quoteMint.equals(SOL_MINT)) {
+                    const wsolAta = (0, spl_token_1.getAssociatedTokenAddressSync)(SOL_MINT, this.publicKey, false, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+                    tx.add((0, spl_token_1.createCloseAccountInstruction)(wsolAta, this.publicKey, this.publicKey));
+                }
+                const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash("finalized");
+                tx.recentBlockhash = blockhash;
+                tx.feePayer = this.publicKey;
+                await this.signTx(tx);
+                const signature = await this.connection.sendRawTransaction(tx.serialize(), {
+                    skipPreflight: false,
+                    maxRetries: 2,
+                });
+                pendingTransactions.push({ signature, lastValidBlockHeight, index: i });
+            }
+            catch (e) {
+                failedTransactions.push({ index: i, error: e.message });
+            }
+        }
+        return { pendingTransactions, failedTransactions };
+    }
+    /**
+     * Sell using sell_v2 instruction (supports both SOL-paired and USDC-paired coins)
+     */
+    async sellV2(tokenAddr, totalTokenIn, tradeOpt, quoteMint = SOL_MINT) {
+        const baseMint = new web3_js_1.PublicKey(tokenAddr);
+        const baseTokenProgram = await this.detectTokenProgram(tokenAddr);
+        const quoteTokenProgramId = quoteMint.equals(SOL_MINT)
+            ? spl_token_1.TOKEN_PROGRAM_ID
+            : spl_token_1.TOKEN_PROGRAM_ID;
+        if (!this.globalState)
+            await this.loadGlobal();
+        const { bonding, state, creator } = await this.loadBonding(baseMint);
+        if (state.complete)
+            throw new Error("Bonding curve already completed");
+        const totalQuoteOut = this.calcSell(totalTokenIn, state);
+        const tokenChunks = totalQuoteOut <= tradeOpt.maxSolPerTx
+            ? [totalTokenIn]
+            : this.splitIntoN(totalTokenIn, Number((totalQuoteOut + tradeOpt.maxSolPerTx - 1n) /
+                tradeOpt.maxSolPerTx));
+        const pendingTransactions = [];
+        const failedTransactions = [];
+        // Pre-compute PDAs
+        const associatedBaseBondingCurve = (0, spl_token_1.getAssociatedTokenAddressSync)(baseMint, bonding, true, baseTokenProgram.programId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const associatedQuoteBondingCurve = (0, spl_token_1.getAssociatedTokenAddressSync)(quoteMint, bonding, true, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const [creatorVault] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("creator-vault"), creator.toBuffer()], PROGRAM_IDS.PUMP);
+        const associatedCreatorVault = (0, spl_token_1.getAssociatedTokenAddressSync)(quoteMint, creatorVault, true, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const [userVolumeAccumulator] = web3_js_1.PublicKey.findProgramAddressSync([
+            Buffer.from("user_volume_accumulator"),
+            this.publicKey.toBuffer(),
+        ], PROGRAM_IDS.PUMP);
+        const associatedUserVolumeAccumulator = (0, spl_token_1.getAssociatedTokenAddressSync)(quoteMint, userVolumeAccumulator, true, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const [feeConfig] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("fee_config"), SEEDS.FEE_CONFIG], PROGRAM_IDS.FEE);
+        const sharingConfig = this.getSharingConfigPda(baseMint);
+        const feeRecipient = this.pickFeeRecipient();
+        const associatedQuoteFeeRecipient = (0, spl_token_1.getAssociatedTokenAddressSync)(quoteMint, feeRecipient, true, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const buybackFeeRecipient = this.pickBuybackFeeRecipient();
+        const associatedQuoteBuybackFeeRecipient = (0, spl_token_1.getAssociatedTokenAddressSync)(quoteMint, buybackFeeRecipient, true, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const associatedQuoteUser = (0, spl_token_1.getAssociatedTokenAddressSync)(quoteMint, this.publicKey, false, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const userBaseAta = (0, spl_token_1.getAssociatedTokenAddressSync)(baseMint, this.publicKey, false, baseTokenProgram.programId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        for (let i = 0; i < tokenChunks.length; i++) {
+            try {
+                const tokenIn = tokenChunks[i];
+                const quoteOut = this.calcSell(tokenIn, state);
+                const slippageBps = this.calcSlippage({
+                    tradeSize: tokenIn,
+                    reserve: state.virtualTokenReserves,
+                    slippageOpt: tradeOpt.slippage,
+                });
+                const minQuoteOut = (quoteOut * BigInt(10_000 - slippageBps)) / 10000n;
+                const priority = this.genPriority(tradeOpt.priority);
+                const tx = new web3_js_1.Transaction().add(web3_js_1.ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }), web3_js_1.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: priority }));
+                // For non-SOL quotes, ensure user has the quote token ATA (to receive proceeds)
+                if (!quoteMint.equals(SOL_MINT)) {
+                    const userQuoteAta = (0, spl_token_1.getAssociatedTokenAddressSync)(quoteMint, this.publicKey, false, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+                    const acc = await this.connection.getAccountInfo(userQuoteAta);
+                    if (!acc) {
+                        tx.add((0, spl_token_1.createAssociatedTokenAccountInstruction)(this.publicKey, userQuoteAta, this.publicKey, quoteMint, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID));
+                    }
+                }
+                tx.add(new web3_js_1.TransactionInstruction({
+                    programId: PROGRAM_IDS.PUMP,
+                    keys: this.buildBondingSellV2Keys({
+                        global: this.global,
+                        baseMint,
+                        quoteMint,
+                        baseTokenProgram: baseTokenProgram.programId,
+                        quoteTokenProgram: quoteTokenProgramId,
+                        feeRecipient,
+                        associatedQuoteFeeRecipient,
+                        buybackFeeRecipient,
+                        associatedQuoteBuybackFeeRecipient,
+                        bondingCurve: bonding,
+                        associatedBaseBondingCurve,
+                        associatedQuoteBondingCurve,
+                        user: this.publicKey,
+                        associatedBaseUser: userBaseAta,
+                        associatedQuoteUser,
+                        creatorVault,
+                        associatedCreatorVault,
+                        sharingConfig,
+                        userVolumeAccumulator,
+                        associatedUserVolumeAccumulator,
+                        feeConfig,
+                        feeProgram: PROGRAM_IDS.FEE,
+                        eventAuthority: PROGRAM_IDS.EVENT_AUTHORITY,
+                        pumpProgram: PROGRAM_IDS.PUMP,
+                    }),
+                    data: Buffer.concat([
+                        DISCRIMINATORS.SELL_V2,
+                        u64(tokenIn),
+                        u64(minQuoteOut > 0n ? minQuoteOut : 1n),
+                    ]),
+                }));
+                const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash("finalized");
+                tx.recentBlockhash = blockhash;
+                tx.feePayer = this.publicKey;
+                await this.signTx(tx);
+                const signature = await this.connection.sendRawTransaction(tx.serialize());
+                pendingTransactions.push({ signature, lastValidBlockHeight, index: i });
+            }
+            catch (e) {
+                failedTransactions.push({ index: i, error: e.message });
+            }
+        }
+        return { pendingTransactions, failedTransactions };
+    }
+    /* ---------- Collect Creator Fee V2 ---------- */
+    /**
+     * Collect creator fees from bonding curve creator vault (collect_creator_fee_v2)
+     * Ref: https://github.com/pump-fun/pump-public-docs/blob/main/docs/instructions/COLLECT_CREATOR_FEE.md
+     */
+    async collectCreatorFeeV2(creator, quoteMint = SOL_MINT) {
+        const quoteTokenProgramId = quoteMint.equals(SOL_MINT)
+            ? spl_token_1.TOKEN_PROGRAM_ID
+            : spl_token_1.TOKEN_PROGRAM_ID;
+        const [creatorVault] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("creator-vault"), creator.toBuffer()], PROGRAM_IDS.PUMP);
+        const creatorTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(quoteMint, creator, false, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const creatorVaultTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(quoteMint, creatorVault, true, quoteTokenProgramId, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const [eventAuthority] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("__event_authority")], PROGRAM_IDS.PUMP);
+        const tx = new web3_js_1.Transaction().add(web3_js_1.ComputeBudgetProgram.setComputeUnitLimit({ units: 200_000 }), new web3_js_1.TransactionInstruction({
+            programId: PROGRAM_IDS.PUMP,
+            keys: [
+                { pubkey: creator, isSigner: false, isWritable: false },
+                { pubkey: creatorTokenAccount, isSigner: false, isWritable: true },
+                { pubkey: creatorVault, isSigner: false, isWritable: true },
+                {
+                    pubkey: creatorVaultTokenAccount,
+                    isSigner: false,
+                    isWritable: true,
+                },
+                { pubkey: quoteMint, isSigner: false, isWritable: false },
+                { pubkey: quoteTokenProgramId, isSigner: false, isWritable: false },
+                {
+                    pubkey: spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID,
+                    isSigner: false,
+                    isWritable: false,
+                },
+                {
+                    pubkey: web3_js_1.SystemProgram.programId,
+                    isSigner: false,
+                    isWritable: false,
+                },
+                { pubkey: eventAuthority, isSigner: false, isWritable: false },
+                { pubkey: PROGRAM_IDS.PUMP, isSigner: false, isWritable: false },
+            ],
+            data: DISCRIMINATORS.COLLECT_CREATOR_FEE_V2,
+        }));
+        const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash("finalized");
+        tx.recentBlockhash = blockhash;
+        tx.feePayer = this.publicKey;
+        await this.signTx(tx);
+        const signature = await this.connection.sendRawTransaction(tx.serialize());
+        await this.confirmTransactionWithPolling(signature, lastValidBlockHeight);
+        return signature;
     }
     /* ---------- 交易确认 ---------- */
     async confirmTransactionWithPolling(signature, lastValidBlockHeight, maxAttempts = 5, delayMs = 2000) {
-        console.log('✅ 交易已发送:', signature);
-        console.log('🔗 查看交易: https://solscan.io/tx/' + signature);
+        console.log("✅ 交易已发送:", signature);
+        console.log("🔗 查看交易: https://solscan.io/tx/" + signature);
         for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-            await new Promise(resolve => setTimeout(resolve, delayMs));
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
             try {
                 console.log(`🔍 检查交易状态 (${attempt}/${maxAttempts})...`);
                 const txInfo = await this.connection.getTransaction(signature, {
-                    commitment: 'confirmed',
-                    maxSupportedTransactionVersion: 0
+                    commitment: "confirmed",
+                    maxSupportedTransactionVersion: 0,
                 });
                 if (txInfo) {
                     if (txInfo.meta?.err) {
-                        console.error('❌ 交易失败:', txInfo.meta.err);
-                        throw new Error('交易失败: ' + JSON.stringify(txInfo.meta.err));
+                        console.error("❌ 交易失败:", txInfo.meta.err);
+                        throw new Error("交易失败: " + JSON.stringify(txInfo.meta.err));
                     }
-                    console.log('✅ 交易已确认!');
+                    console.log("✅ 交易已确认!");
                     return signature;
                 }
-                const currentBlockHeight = await this.connection.getBlockHeight('finalized');
+                const currentBlockHeight = await this.connection.getBlockHeight("finalized");
                 if (currentBlockHeight > lastValidBlockHeight) {
-                    console.log('⚠️ 交易已过期（超过有效区块高度）');
-                    throw new Error('交易过期：未在有效区块高度内确认');
+                    console.log("⚠️ 交易已过期（超过有效区块高度）");
+                    throw new Error("交易过期：未在有效区块高度内确认");
                 }
             }
             catch (error) {
                 const err = error;
-                if (err.message?.includes('交易失败') || err.message?.includes('交易过期')) {
+                if (err.message?.includes("交易失败") ||
+                    err.message?.includes("交易过期")) {
                     throw error;
                 }
                 console.log(`⚠️ 查询出错，继续重试: ${err.message}`);
@@ -1012,7 +1615,7 @@ class PumpTrader {
                     isBuy,
                     user: user.toBase58(),
                     timestamp,
-                    signature: log.signature
+                    signature: log.signature,
                 });
             }
         }, "confirmed");
@@ -1025,25 +1628,34 @@ class PumpTrader {
             return {
                 name: metadata?.name || "",
                 symbol: metadata?.symbol || "",
-                uri: metadata?.uri || ""
+                uri: metadata?.uri || "",
             };
         }
         catch (e) {
-            const metadataPda = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("metadata"), PROGRAM_IDS.METADATA.toBuffer(), mint.toBuffer()], PROGRAM_IDS.METADATA)[0];
+            const metadataPda = web3_js_1.PublicKey.findProgramAddressSync([
+                Buffer.from("metadata"),
+                PROGRAM_IDS.METADATA.toBuffer(),
+                mint.toBuffer(),
+            ], PROGRAM_IDS.METADATA)[0];
             const acc = await this.connection.getAccountInfo(metadataPda);
             if (!acc)
                 return null;
             const meta = parseMetadataAccount(acc.data);
             return {
-                name: meta?.name?.replace(/\u0000/g, '') || "",
-                symbol: meta?.symbol?.replace(/\u0000/g, '') || "",
-                uri: meta?.uri?.replace(/\u0000/g, '') || ""
+                name: meta?.name?.replace(/\u0000/g, "") || "",
+                symbol: meta?.symbol?.replace(/\u0000/g, "") || "",
+                uri: meta?.uri?.replace(/\u0000/g, "") || "",
             };
         }
     }
-    // 公开wallet方法
+    /**
+     * 获取原始 wallet 对象（Keypair 或前端 WalletAdapter）
+     */
     getWallet() {
-        return this.wallet;
+        return this._wallet;
+    }
+    getPublicKey() {
+        return this.publicKey;
     }
     getConnection() {
         return this.connection;
