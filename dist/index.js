@@ -1048,8 +1048,8 @@ class PumpTrader {
         const [feeConfig] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("fee_config"), SEEDS.AMM_FEE_CONFIG], PROGRAM_IDS.FEE);
         const protocolFeeRecipient = globalConfig.protocolFeeRecipients[0];
         const protocolFeeRecipientTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(SOL_MINT, protocolFeeRecipient, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
-        const newFeeRecipient = this.pickFeeRecipient();
-        const newFeeRecipientTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(poolKeys.quoteMint, newFeeRecipient, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const buybackFeeRecipient = this.pickBuybackFeeRecipient();
+        const buybackFeeRecipientTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(poolKeys.quoteMint, buybackFeeRecipient, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
         const remainingKeys = [];
         if (poolKeys.isCashbackCoin) {
             const userVolumeAccumulatorWsolAta = (0, spl_token_1.getAssociatedTokenAddressSync)(SOL_MINT, userVolumeAccumulator, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
@@ -1070,8 +1070,8 @@ class PumpTrader {
                 isWritable: true,
             });
         }
-        remainingKeys.push({ pubkey: newFeeRecipient, isSigner: false, isWritable: false }, {
-            pubkey: newFeeRecipientTokenAccount,
+        remainingKeys.push({ pubkey: buybackFeeRecipient, isSigner: false, isWritable: false }, {
+            pubkey: buybackFeeRecipientTokenAccount,
             isSigner: false,
             isWritable: true,
         });
@@ -1140,8 +1140,8 @@ class PumpTrader {
         const [feeConfig] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("fee_config"), SEEDS.AMM_FEE_CONFIG], PROGRAM_IDS.FEE);
         const protocolFeeRecipient = globalConfig.protocolFeeRecipients[0];
         const protocolFeeRecipientTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(SOL_MINT, protocolFeeRecipient, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
-        const newFeeRecipient = this.pickFeeRecipient();
-        const newFeeRecipientTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(poolKeys.quoteMint, newFeeRecipient, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
+        const buybackFeeRecipient = this.pickBuybackFeeRecipient();
+        const buybackFeeRecipientTokenAccount = (0, spl_token_1.getAssociatedTokenAddressSync)(poolKeys.quoteMint, buybackFeeRecipient, true, spl_token_1.TOKEN_PROGRAM_ID, spl_token_1.ASSOCIATED_TOKEN_PROGRAM_ID);
         const [userVolumeAccumulator] = web3_js_1.PublicKey.findProgramAddressSync([
             Buffer.from("user_volume_accumulator"),
             this.publicKey.toBuffer(),
@@ -1166,8 +1166,8 @@ class PumpTrader {
                 isWritable: true,
             });
         }
-        remainingKeys.push({ pubkey: newFeeRecipient, isSigner: false, isWritable: false }, {
-            pubkey: newFeeRecipientTokenAccount,
+        remainingKeys.push({ pubkey: buybackFeeRecipient, isSigner: false, isWritable: false }, {
+            pubkey: buybackFeeRecipientTokenAccount,
             isSigner: false,
             isWritable: true,
         });

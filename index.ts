@@ -1731,10 +1731,10 @@ export class PumpTrader {
       TOKEN_PROGRAM_ID,
       ASSOCIATED_TOKEN_PROGRAM_ID,
     );
-    const newFeeRecipient = this.pickFeeRecipient();
-    const newFeeRecipientTokenAccount = getAssociatedTokenAddressSync(
+    const buybackFeeRecipient = this.pickBuybackFeeRecipient();
+    const buybackFeeRecipientTokenAccount = getAssociatedTokenAddressSync(
       poolKeys.quoteMint,
-      newFeeRecipient,
+      buybackFeeRecipient,
       true,
       TOKEN_PROGRAM_ID,
       ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -1766,9 +1766,9 @@ export class PumpTrader {
       });
     }
     remainingKeys.push(
-      { pubkey: newFeeRecipient, isSigner: false, isWritable: false },
+      { pubkey: buybackFeeRecipient, isSigner: false, isWritable: false },
       {
-        pubkey: newFeeRecipientTokenAccount,
+        pubkey: buybackFeeRecipientTokenAccount,
         isSigner: false,
         isWritable: true,
       },
@@ -1873,10 +1873,10 @@ export class PumpTrader {
       TOKEN_PROGRAM_ID,
       ASSOCIATED_TOKEN_PROGRAM_ID,
     );
-    const newFeeRecipient = this.pickFeeRecipient();
-    const newFeeRecipientTokenAccount = getAssociatedTokenAddressSync(
+    const buybackFeeRecipient = this.pickBuybackFeeRecipient();
+    const buybackFeeRecipientTokenAccount = getAssociatedTokenAddressSync(
       poolKeys.quoteMint,
-      newFeeRecipient,
+      buybackFeeRecipient,
       true,
       TOKEN_PROGRAM_ID,
       ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -1920,9 +1920,9 @@ export class PumpTrader {
       });
     }
     remainingKeys.push(
-      { pubkey: newFeeRecipient, isSigner: false, isWritable: false },
+      { pubkey: buybackFeeRecipient, isSigner: false, isWritable: false },
       {
-        pubkey: newFeeRecipientTokenAccount,
+        pubkey: buybackFeeRecipientTokenAccount,
         isSigner: false,
         isWritable: true,
       },

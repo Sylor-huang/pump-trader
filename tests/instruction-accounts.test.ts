@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import bs58 from "bs58";
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { ASSOCIATED_TOKEN_PROGRAM_ID, getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 
@@ -9,6 +8,17 @@ import { PumpTrader } from "../index";
 
 const SOL_MINT = new PublicKey("So11111111111111111111111111111111111111112");
 const FEE_RECIPIENTS = [
+  "62qc2CNXwrYqQScmEdiZFFAnJR262PxWEuNQtxfafNgV",
+  "7VtfL8fvgNfhz17qKRMjzQEXgbdpnHHHQRh54R9jP2RJ",
+  "7hTckgnGnLQR6sdH7YkqFTAA7VwTfYFaZ6EhEsU3saCX",
+  "9rPYyANsfQZw3DnDmKE3YCQF5E8oD89UXoHn9JFEhJUz",
+  "AVmoTthdrX6tKt4nDjco2D775W2YK3sDhxPcMmzUAmTY",
+  "CebN5WGQ4jvEPvsVU4EoHEpgzq1VV7AbicfhtW4xC9iM",
+  "FWsW1xNtWscwNmKv6wVsU1iTzRN6wmmk3MjxRP5tT7hz",
+  "G5UZAVbAf46s7cKWoyKu8kYTip9DGTpbLZ2qa9Aq69dP"
+].map((value) => new PublicKey(value));
+
+const BUYBACK_FEE_RECIPIENTS = [
   "5YxQFdt3Tr9zJLvkFccqXVUwhdTWJQc1fFg2YPbxvxeD",
   "9M4giFFMxmFGXtc3feFzRai56WbBqehoSeRE5GK7gf7",
   "GXPFM2caqTtQYC2cJ5yJRi9VDkpsYZXzYdwYpGnLmtDL",
@@ -20,7 +30,7 @@ const FEE_RECIPIENTS = [
 ].map((value) => new PublicKey(value));
 
 function createTrader() {
-  return new PumpTrader("http://127.0.0.1:8899", bs58.encode(Keypair.generate().secretKey));
+  return new PumpTrader("http://127.0.0.1:8899", Keypair.generate());
 }
 
 function createPoolInfo(isCashbackCoin: boolean) {
@@ -127,7 +137,7 @@ test("amm buy places poolV2 before fee recipient pair for non-cashback coins", (
     TOKEN_PROGRAM_ID
   );
 
-  const feeRecipient = poolInfo.globalConfig.protocolFeeRecipients[0];
+  const feeRecipient = BUYBACK_FEE_RECIPIENTS[0];
   const feeRecipientAta = getAssociatedTokenAddressSync(
     SOL_MINT,
     feeRecipient,
@@ -136,6 +146,7 @@ test("amm buy places poolV2 before fee recipient pair for non-cashback coins", (
     ASSOCIATED_TOKEN_PROGRAM_ID
   );
 
+  assert.equal(instruction.keys[9]?.pubkey.toBase58(), poolInfo.globalConfig.protocolFeeRecipients[0].toBase58());
   assert.equal(instruction.keys.length, 26);
   assert.equal(instruction.keys.at(-3)?.pubkey.toBase58(), trader.deriveAmmPoolV2(poolInfo.poolKeys.baseMint).toBase58());
   assert.equal(instruction.keys.at(-2)?.pubkey.toBase58(), feeRecipient.toBase58());
@@ -159,7 +170,7 @@ test("amm buy places cashback account before poolV2 and fee recipient tail", () 
 
   assert.equal(instruction.keys.length, 27);
   assert.equal(instruction.keys.at(-3)?.isWritable, false);
-  assert.equal(instruction.keys.at(-2)?.pubkey.toBase58(), poolInfo.globalConfig.protocolFeeRecipients[0].toBase58());
+  assert.equal(instruction.keys.at(-2)?.pubkey.toBase58(), BUYBACK_FEE_RECIPIENTS[0].toBase58());
   assert.equal(instruction.keys.at(-1)?.isWritable, true);
 });
 
@@ -178,7 +189,7 @@ test("amm sell places poolV2 before fee recipient pair for non-cashback coins", 
 
   assert.equal(instruction.keys.length, 24);
   assert.equal(instruction.keys.at(-3)?.pubkey.toBase58(), trader.deriveAmmPoolV2(poolInfo.poolKeys.baseMint).toBase58());
-  assert.equal(instruction.keys.at(-2)?.pubkey.toBase58(), poolInfo.globalConfig.protocolFeeRecipients[0].toBase58());
+  assert.equal(instruction.keys.at(-2)?.pubkey.toBase58(), BUYBACK_FEE_RECIPIENTS[0].toBase58());
   assert.equal(instruction.keys.at(-1)?.isWritable, true);
 });
 
@@ -197,10 +208,10 @@ test("amm sell places cashback accounts before poolV2 and fee recipient tail", (
 
   assert.equal(instruction.keys.length, 26);
   assert.equal(instruction.keys.at(-3)?.pubkey.toBase58(), trader.deriveAmmPoolV2(poolInfo.poolKeys.baseMint).toBase58());
-  assert.equal(instruction.keys.at(-2)?.pubkey.toBase58(), poolInfo.globalConfig.protocolFeeRecipients[0].toBase58());
+  assert.equal(instruction.keys.at(-2)?.pubkey.toBase58(), BUYBACK_FEE_RECIPIENTS[0].toBase58());
   assert.equal(instruction.keys.at(-1)?.pubkey.toBase58(), getAssociatedTokenAddressSync(
     SOL_MINT,
-    poolInfo.globalConfig.protocolFeeRecipients[0],
+    BUYBACK_FEE_RECIPIENTS[0],
     true,
     TOKEN_PROGRAM_ID,
     ASSOCIATED_TOKEN_PROGRAM_ID
