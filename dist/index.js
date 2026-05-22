@@ -154,9 +154,6 @@ function parsePoolKeys(data) {
 class PumpTrader {
     constructor(rpc, wallet) {
         /* ---------- 价格查询 ---------- */
-        /**
-         * Get USDC/SOL price by reading Orca USDC/SOL whirlpool token vault balances
-         */
         this.solPriceCache = null;
         this.connection = new web3_js_1.Connection(rpc, "confirmed");
         this._wallet = wallet;
@@ -425,43 +422,39 @@ class PumpTrader {
         return numerator / denominator;
     }
     async getSolPriceInUsdc() {
-        // Cache for 30 seconds
-        if (this.solPriceCache && Date.now() - this.solPriceCache.timestamp < 30000) {
+        if (this.solPriceCache && Date.now() - this.solPriceCache.timestamp < 60000) {
             return this.solPriceCache.price;
         }
-        const USDC_MINT = new web3_js_1.PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
-        // Orca USDC/SOL whirlpool address (mainnet)
-        const ORCA_USDC_SOL_POOL = new web3_js_1.PublicKey("7qbRF6YsyGuLUVs6Y1q64bdVrfe4ZcUUz1JRdoVNUJnm");
         try {
-            const acc = await this.connection.getAccountInfo(ORCA_USDC_SOL_POOL);
-            if (!acc || acc.data.length < 300)
-                throw new Error("Pool data too short");
-            // Whirlpool data layout (offset: field):
-            // 0-8: discriminator
-            // 8-40: whirlpoolsConfig
-            // 40-72: tokenMintA
-            // 72-104: tokenMintB
-            // 104-136: tokenVaultA
-            // 136-168: tokenVaultB
-            // ... skip fee tier, tick spacing, etc.
-            // The vault addresses are at fixed offsets
+            // Use Orca USDC/SOL whirlpool (7qbRF6YsyGuLUVs6Y1q64bdVrfe4ZcUUz1JRdoVNUJnm)
+            // Read token vault balances directly to compute price
+            const poolAddr = new web3_js_1.PublicKey("7qbRF6YsyGuLUVs6Y1q64bdVrfe4ZcUUz1JRdoVNUJnm");
+            const acc = await this.connection.getAccountInfo(poolAddr);
+            if (!acc || acc.data.length < 304)
+                throw new Error("Invalid pool data");
+            // Whirlpool: tokenMintA at offset 40, tokenMintB at offset 72, vaultA at 104, vaultB at 136
+            const tokenMintA = new web3_js_1.PublicKey(acc.data.slice(40, 72));
             const tokenVaultA = new web3_js_1.PublicKey(acc.data.slice(104, 136));
             const tokenVaultB = new web3_js_1.PublicKey(acc.data.slice(136, 168));
             const [balanceA, balanceB] = await Promise.all([
                 this.connection.getTokenAccountBalance(tokenVaultA),
                 this.connection.getTokenAccountBalance(tokenVaultB),
             ]);
-            // tokenMintA = SOL, tokenMintB = USDC (from Orca pool config)
-            const solBalance = Number(balanceA.value.amount);
-            const usdcBalance = Number(balanceB.value.amount);
+            // Determine which vault holds SOL by checking tokenMintA
+            const SOL_ADDR = "So11111111111111111111111111111111111111112";
+            const solBalance = tokenMintA.toBase58() === SOL_ADDR
+                ? Number(balanceA.value.amount)
+                : Number(balanceB.value.amount);
+            const usdcBalance = tokenMintA.toBase58() === SOL_ADDR
+                ? Number(balanceB.value.amount)
+                : Number(balanceA.value.amount);
             if (solBalance === 0)
-                throw new Error("Zero SOL balance in pool");
-            const price = usdcBalance / solBalance; // USDC per SOL
+                throw new Error("Zero balance");
+            const price = usdcBalance / solBalance;
             this.solPriceCache = { price, timestamp: Date.now() };
             return price;
         }
-        catch (e) {
-            // Fallback: ~175 USDC/SOL as of 2025
+        catch {
             return 175;
         }
     }
@@ -481,7 +474,9 @@ class PumpTrader {
             const price = Number(solOut) / 1e9;
             return { price, completed: false };
         }
-        // Non-SOL quote (USDC etc): compute price in quote token, then convert to SOL
+        // USDC-paired bonding curve: pump stores USDC raw amount (6 decimals) in the
+        // virtualSolReserves field. calcSell returns USDC raw, divide by 1e6 for USDC price.
+        // Then convert to SOL using Orca USDC/SOL pool.
         let quotePrice;
         if (state.virtualQuoteReserves !== undefined) {
             const newVirtualToken = state.virtualTokenReserves + oneToken;
@@ -489,10 +484,9 @@ class PumpTrader {
             quotePrice = Number(quoteOut) / 1e6;
         }
         else {
-            const solOut = this.calcSell(oneToken, state);
-            quotePrice = Number(solOut) / 1e9;
+            const rawOut = this.calcSell(oneToken, state);
+            quotePrice = Number(rawOut) / 1e6;
         }
-        // Convert quote price to SOL price using USDC/SOL rate
         const solPrice = await this.getSolPriceInUsdc();
         const price = quotePrice / solPrice;
         return { price, completed: false };
@@ -1065,7 +1059,17 @@ class PumpTrader {
                 isWritable: true,
             });
         }
-        remainingKeys.push({ pubkey: poolV2, isSigner: false, isWritable: false });
+        const POOL_DEFAULT_COIN_CREATOR = new web3_js_1.PublicKey("11111111111111111111111111111111");
+        if (poolKeys.coinCreator && !poolKeys.coinCreator.equals(POOL_DEFAULT_COIN_CREATOR)) {
+            remainingKeys.push({ pubkey: poolV2, isSigner: false, isWritable: false });
+        }
+        else {
+            remainingKeys.push({
+                pubkey: PUMP_BUYBACK_FEE_RECIPIENTS[0],
+                isSigner: false,
+                isWritable: true,
+            });
+        }
         remainingKeys.push({ pubkey: newFeeRecipient, isSigner: false, isWritable: false }, {
             pubkey: newFeeRecipientTokenAccount,
             isSigner: false,
@@ -1151,7 +1155,17 @@ class PumpTrader {
                 isWritable: true,
             }, { pubkey: userVolumeAccumulator, isSigner: false, isWritable: true });
         }
-        remainingKeys.push({ pubkey: poolV2, isSigner: false, isWritable: false });
+        const POOL_DEFAULT_COIN_CREATOR = new web3_js_1.PublicKey("11111111111111111111111111111111");
+        if (poolKeys.coinCreator && !poolKeys.coinCreator.equals(POOL_DEFAULT_COIN_CREATOR)) {
+            remainingKeys.push({ pubkey: poolV2, isSigner: false, isWritable: false });
+        }
+        else {
+            remainingKeys.push({
+                pubkey: PUMP_BUYBACK_FEE_RECIPIENTS[0],
+                isSigner: false,
+                isWritable: true,
+            });
+        }
         remainingKeys.push({ pubkey: newFeeRecipient, isSigner: false, isWritable: false }, {
             pubkey: newFeeRecipientTokenAccount,
             isSigner: false,

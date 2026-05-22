@@ -126,9 +126,6 @@ export declare class PumpTrader {
     calcSell(tokenIn: bigint, state: BondingCurveState): bigint;
     calculateAmmBuyOutput(quoteIn: bigint, reserves: PoolReserves): bigint;
     calculateAmmSellOutput(baseIn: bigint, reserves: PoolReserves): bigint;
-    /**
-     * Get USDC/SOL price by reading Orca USDC/SOL whirlpool token vault balances
-     */
     private solPriceCache;
     getSolPriceInUsdc(): Promise<number>;
     getPriceAndStatus(tokenAddr: string, quoteMint?: PublicKey): Promise<{

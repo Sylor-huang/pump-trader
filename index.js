@@ -492,30 +492,34 @@ export class PumpTrader {
 
   /* ---------- 价格查询 ---------- */
 
-  /** Get USDC/SOL price from Orca USDC/SOL whirlpool (cached 30s) */
   async getSolPriceInUsdc() {
-    if (this._solPriceCache && Date.now() - this._solPriceCache.timestamp < 30000) {
+    if (this._solPriceCache && Date.now() - this._solPriceCache.timestamp < 60000) {
       return this._solPriceCache.price;
     }
-    const USDC_MINT = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
-    const ORCA_USDC_SOL_POOL = new PublicKey("7qbRF6YsyGuLUVs6Y1q64bdVrfe4ZcUUz1JRdoVNUJnm");
     try {
-      const acc = await this.connection.getAccountInfo(ORCA_USDC_SOL_POOL);
-      if (!acc || acc.data.length < 300) throw new Error("Pool data too short");
+      const poolAddr = new PublicKey("7qbRF6YsyGuLUVs6Y1q64bdVrfe4ZcUUz1JRdoVNUJnm");
+      const acc = await this.connection.getAccountInfo(poolAddr);
+      if (!acc || acc.data.length < 304) throw new Error("Invalid pool data");
+      const tokenMintA = new PublicKey(acc.data.slice(40, 72));
       const tokenVaultA = new PublicKey(acc.data.slice(104, 136));
       const tokenVaultB = new PublicKey(acc.data.slice(136, 168));
       const [balanceA, balanceB] = await Promise.all([
         this.connection.getTokenAccountBalance(tokenVaultA),
         this.connection.getTokenAccountBalance(tokenVaultB),
       ]);
-      const solBalance = Number(balanceA.value.amount);
-      const usdcBalance = Number(balanceB.value.amount);
-      if (solBalance === 0) throw new Error("Zero SOL balance");
+      const SOL_ADDR = "So11111111111111111111111111111111111111112";
+      const solBalance = tokenMintA.toBase58() === SOL_ADDR
+        ? Number(balanceA.value.amount)
+        : Number(balanceB.value.amount);
+      const usdcBalance = tokenMintA.toBase58() === SOL_ADDR
+        ? Number(balanceB.value.amount)
+        : Number(balanceA.value.amount);
+      if (solBalance === 0) throw new Error("Zero balance");
       const price = usdcBalance / solBalance;
       this._solPriceCache = { price, timestamp: Date.now() };
       return price;
     } catch {
-      return 90;
+      return 175;
     }
   }
 
@@ -546,8 +550,8 @@ export class PumpTrader {
       const quoteOut = state.virtualQuoteReserves - (state.virtualQuoteReserves * state.virtualTokenReserves) / newVirtualToken;
       quotePrice = Number(quoteOut) / 1e6;
     } else {
-      const solOut = this.calcSell(oneToken, state);
-      quotePrice = Number(solOut) / 1e9;
+      const rawOut = this.calcSell(oneToken, state);
+      quotePrice = Number(rawOut) / 1e6;
     }
 
     const solPrice = await this.getSolPriceInUsdc();
@@ -1472,7 +1476,16 @@ export class PumpTrader {
         isWritable: true,
       });
     }
-    remainingKeys.push({ pubkey: poolV2, isSigner: false, isWritable: false });
+    const POOL_DEFAULT_COIN_CREATOR = new PublicKey("11111111111111111111111111111111");
+    if (poolKeys.coinCreator && !poolKeys.coinCreator.equals(POOL_DEFAULT_COIN_CREATOR)) {
+      remainingKeys.push({ pubkey: poolV2, isSigner: false, isWritable: false });
+    } else {
+      remainingKeys.push({
+        pubkey: PUMP_BUYBACK_FEE_RECIPIENTS[0],
+        isSigner: false,
+        isWritable: true,
+      });
+    }
     remainingKeys.push(
       { pubkey: newFeeRecipient, isSigner: false, isWritable: false },
       {
