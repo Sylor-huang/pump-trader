@@ -126,11 +126,16 @@ export declare class PumpTrader {
     calcSell(tokenIn: bigint, state: BondingCurveState): bigint;
     calculateAmmBuyOutput(quoteIn: bigint, reserves: PoolReserves): bigint;
     calculateAmmSellOutput(baseIn: bigint, reserves: PoolReserves): bigint;
-    getPriceAndStatus(tokenAddr: string): Promise<{
+    /**
+     * Get USDC/SOL price by reading Orca USDC/SOL whirlpool token vault balances
+     */
+    private solPriceCache;
+    getSolPriceInUsdc(): Promise<number>;
+    getPriceAndStatus(tokenAddr: string, quoteMint?: PublicKey): Promise<{
         price: number;
         completed: boolean;
     }>;
-    getAmmPrice(mint: PublicKey): Promise<number>;
+    getAmmPrice(mint: PublicKey, quoteMint?: PublicKey): Promise<number>;
     /**
      * 查询代币余额
      * @param tokenAddr - 代币地址（可选），如果不传则返回所有代币

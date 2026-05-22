@@ -492,22 +492,70 @@ export class PumpTrader {
 
   /* ---------- 价格查询 ---------- */
 
-  async getPriceAndStatus(tokenAddr) {
+  /** Get USDC/SOL price from Orca USDC/SOL whirlpool (cached 30s) */
+  async getSolPriceInUsdc() {
+    if (this._solPriceCache && Date.now() - this._solPriceCache.timestamp < 30000) {
+      return this._solPriceCache.price;
+    }
+    const USDC_MINT = new PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+    const ORCA_USDC_SOL_POOL = new PublicKey("7qbRF6YsyGuLUVs6Y1q64bdVrfe4ZcUUz1JRdoVNUJnm");
+    try {
+      const acc = await this.connection.getAccountInfo(ORCA_USDC_SOL_POOL);
+      if (!acc || acc.data.length < 300) throw new Error("Pool data too short");
+      const tokenVaultA = new PublicKey(acc.data.slice(104, 136));
+      const tokenVaultB = new PublicKey(acc.data.slice(136, 168));
+      const [balanceA, balanceB] = await Promise.all([
+        this.connection.getTokenAccountBalance(tokenVaultA),
+        this.connection.getTokenAccountBalance(tokenVaultB),
+      ]);
+      const solBalance = Number(balanceA.value.amount);
+      const usdcBalance = Number(balanceB.value.amount);
+      if (solBalance === 0) throw new Error("Zero SOL balance");
+      const price = usdcBalance / solBalance;
+      this._solPriceCache = { price, timestamp: Date.now() };
+      return price;
+    } catch {
+      return 90;
+    }
+  }
+
+  async getPriceAndStatus(tokenAddr, quoteMint = null) {
     const mint = new PublicKey(tokenAddr);
     const { state } = await this.loadBonding(mint);
 
     if (state.complete) {
-      const price = await this.getAmmPrice(mint);
+      const qm = quoteMint || (state.quoteMint && !state.quoteMint.equals(SOL_MINT) ? state.quoteMint : SOL_MINT);
+      const price = await this.getAmmPrice(mint, qm);
       return { price, completed: true };
     }
 
+    const qm = quoteMint || state.quoteMint || SOL_MINT;
+    const isSolQuote = qm.equals(SOL_MINT);
+
     const oneToken = BigInt(1_000_000);
-    const solOut = this.calcSell(oneToken, state);
-    const price = Number(solOut) / 1e9;
+
+    if (isSolQuote) {
+      const solOut = this.calcSell(oneToken, state);
+      const price = Number(solOut) / 1e9;
+      return { price, completed: false };
+    }
+
+    let quotePrice;
+    if (state.virtualQuoteReserves !== undefined) {
+      const newVirtualToken = state.virtualTokenReserves + oneToken;
+      const quoteOut = state.virtualQuoteReserves - (state.virtualQuoteReserves * state.virtualTokenReserves) / newVirtualToken;
+      quotePrice = Number(quoteOut) / 1e6;
+    } else {
+      const solOut = this.calcSell(oneToken, state);
+      quotePrice = Number(solOut) / 1e9;
+    }
+
+    const solPrice = await this.getSolPriceInUsdc();
+    const price = quotePrice / solPrice;
     return { price, completed: false };
   }
 
-  async getAmmPrice(mint) {
+  async getAmmPrice(mint, quoteMint = SOL_MINT) {
     const [poolCreator] = PublicKey.findProgramAddressSync(
       [Buffer.from("pool-authority"), mint.toBuffer()],
       PROGRAM_IDS.PUMP,
@@ -520,7 +568,7 @@ export class PumpTrader {
         indexBuffer,
         poolCreator.toBuffer(),
         mint.toBuffer(),
-        SOL_MINT.toBuffer(),
+        quoteMint.toBuffer(),
       ],
       PROGRAM_IDS.PUMP_AMM,
     );
@@ -534,7 +582,14 @@ export class PumpTrader {
       this.connection.getTokenAccountBalance(poolKeys.poolQuoteTokenAccount),
     ]);
 
-    return quoteInfo.value.uiAmount / baseInfo.value.uiAmount;
+    let price = quoteInfo.value.uiAmount / baseInfo.value.uiAmount;
+
+    if (!quoteMint.equals(SOL_MINT)) {
+      const solPrice = await this.getSolPriceInUsdc();
+      price = price / solPrice;
+    }
+
+    return price;
   }
 
   /* ---------- 余额查询 ---------- */

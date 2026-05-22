@@ -153,6 +153,11 @@ function parsePoolKeys(data) {
 /* ================= PumpTrader 类 ================= */
 class PumpTrader {
     constructor(rpc, wallet) {
+        /* ---------- 价格查询 ---------- */
+        /**
+         * Get USDC/SOL price by reading Orca USDC/SOL whirlpool token vault balances
+         */
+        this.solPriceCache = null;
         this.connection = new web3_js_1.Connection(rpc, "confirmed");
         this._wallet = wallet;
         this.publicKey = wallet.publicKey;
@@ -419,20 +424,80 @@ class PumpTrader {
         const denominator = reserves.baseAmount + baseInAfterFee;
         return numerator / denominator;
     }
-    /* ---------- 价格查询 ---------- */
-    async getPriceAndStatus(tokenAddr) {
+    async getSolPriceInUsdc() {
+        // Cache for 30 seconds
+        if (this.solPriceCache && Date.now() - this.solPriceCache.timestamp < 30000) {
+            return this.solPriceCache.price;
+        }
+        const USDC_MINT = new web3_js_1.PublicKey("EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v");
+        // Orca USDC/SOL whirlpool address (mainnet)
+        const ORCA_USDC_SOL_POOL = new web3_js_1.PublicKey("7qbRF6YsyGuLUVs6Y1q64bdVrfe4ZcUUz1JRdoVNUJnm");
+        try {
+            const acc = await this.connection.getAccountInfo(ORCA_USDC_SOL_POOL);
+            if (!acc || acc.data.length < 300)
+                throw new Error("Pool data too short");
+            // Whirlpool data layout (offset: field):
+            // 0-8: discriminator
+            // 8-40: whirlpoolsConfig
+            // 40-72: tokenMintA
+            // 72-104: tokenMintB
+            // 104-136: tokenVaultA
+            // 136-168: tokenVaultB
+            // ... skip fee tier, tick spacing, etc.
+            // The vault addresses are at fixed offsets
+            const tokenVaultA = new web3_js_1.PublicKey(acc.data.slice(104, 136));
+            const tokenVaultB = new web3_js_1.PublicKey(acc.data.slice(136, 168));
+            const [balanceA, balanceB] = await Promise.all([
+                this.connection.getTokenAccountBalance(tokenVaultA),
+                this.connection.getTokenAccountBalance(tokenVaultB),
+            ]);
+            // tokenMintA = SOL, tokenMintB = USDC (from Orca pool config)
+            const solBalance = Number(balanceA.value.amount);
+            const usdcBalance = Number(balanceB.value.amount);
+            if (solBalance === 0)
+                throw new Error("Zero SOL balance in pool");
+            const price = usdcBalance / solBalance; // USDC per SOL
+            this.solPriceCache = { price, timestamp: Date.now() };
+            return price;
+        }
+        catch (e) {
+            // Fallback: ~175 USDC/SOL as of 2025
+            return 175;
+        }
+    }
+    async getPriceAndStatus(tokenAddr, quoteMint) {
         const mint = new web3_js_1.PublicKey(tokenAddr);
         const { state } = await this.loadBonding(mint);
         if (state.complete) {
-            const price = await this.getAmmPrice(mint);
+            const qm = quoteMint || (state.quoteMint && !state.quoteMint.equals(SOL_MINT) ? state.quoteMint : SOL_MINT);
+            const price = await this.getAmmPrice(mint, qm);
             return { price, completed: true };
         }
+        const qm = quoteMint || state.quoteMint || SOL_MINT;
+        const isSolQuote = qm.equals(SOL_MINT);
         const oneToken = BigInt(1_000_000);
-        const solOut = this.calcSell(oneToken, state);
-        const price = Number(solOut) / 1e9;
+        if (isSolQuote) {
+            const solOut = this.calcSell(oneToken, state);
+            const price = Number(solOut) / 1e9;
+            return { price, completed: false };
+        }
+        // Non-SOL quote (USDC etc): compute price in quote token, then convert to SOL
+        let quotePrice;
+        if (state.virtualQuoteReserves !== undefined) {
+            const newVirtualToken = state.virtualTokenReserves + oneToken;
+            const quoteOut = state.virtualQuoteReserves - (state.virtualQuoteReserves * state.virtualTokenReserves) / newVirtualToken;
+            quotePrice = Number(quoteOut) / 1e6;
+        }
+        else {
+            const solOut = this.calcSell(oneToken, state);
+            quotePrice = Number(solOut) / 1e9;
+        }
+        // Convert quote price to SOL price using USDC/SOL rate
+        const solPrice = await this.getSolPriceInUsdc();
+        const price = quotePrice / solPrice;
         return { price, completed: false };
     }
-    async getAmmPrice(mint) {
+    async getAmmPrice(mint, quoteMint = SOL_MINT) {
         const [poolCreator] = web3_js_1.PublicKey.findProgramAddressSync([Buffer.from("pool-authority"), mint.toBuffer()], PROGRAM_IDS.PUMP);
         const indexBuffer = new bn_js_1.default(0).toArrayLike(Buffer, "le", 2);
         const [pool] = web3_js_1.PublicKey.findProgramAddressSync([
@@ -440,7 +505,7 @@ class PumpTrader {
             indexBuffer,
             poolCreator.toBuffer(),
             mint.toBuffer(),
-            SOL_MINT.toBuffer(),
+            quoteMint.toBuffer(),
         ], PROGRAM_IDS.PUMP_AMM);
         const acc = await this.connection.getAccountInfo(pool);
         if (!acc)
@@ -450,7 +515,13 @@ class PumpTrader {
             this.connection.getTokenAccountBalance(poolKeys.poolBaseTokenAccount),
             this.connection.getTokenAccountBalance(poolKeys.poolQuoteTokenAccount),
         ]);
-        return quoteInfo.value.uiAmount / baseInfo.value.uiAmount;
+        let price = quoteInfo.value.uiAmount / baseInfo.value.uiAmount;
+        // If pool is not SOL-quoted, convert to SOL price
+        if (!quoteMint.equals(SOL_MINT)) {
+            const solPrice = await this.getSolPriceInUsdc();
+            price = price / solPrice;
+        }
+        return price;
     }
     /* ---------- 余额查询 ---------- */
     /**
